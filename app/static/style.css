@@ -1,0 +1,93 @@
+body {
+    font-size: 0.9rem;
+    background-color: #f5f7fa;
+}
+
+.navbar-brand {
+    font-weight: 700;
+}
+
+.card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    border-radius: 0.5rem;
+}
+
+.card-header {
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.assignment-chip {
+    background: #e8f4fd;
+    border: 1px solid #bee5eb;
+    border-radius: 0.25rem;
+    padding: 2px 6px;
+    font-size: 0.78rem;
+}
+
+.day-card-body {
+    min-height: 80px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Autocomplete dropdown */
+.autocomplete-dropdown {
+    display: none;
+    position: absolute;
+    z-index: 1050;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.25rem 0.25rem;
+    max-height: 200px;
+    overflow-y: auto;
+    width: calc(100% - 1.5rem);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.autocomplete-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.autocomplete-item:hover {
+    background-color: #e9ecef;
+}
+
+/* Table styles */
+.table th {
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.table td {
+    font-size: 0.83rem;
+    vertical-align: middle;
+}
+
+/* Badge */
+.badge {
+    font-size: 0.75rem;
+}
+
+/* Unpaired assignment chip */
+.chip-unpaired {
+    background: #fff9e6;
+    border: 1px dashed #f0c040;
+    border-radius: 0.25rem;
+}
+
+/* Grounded van chip */
+.chip-grounded {
+    background: #fde8e8;
+    border-color: #f5c2c2;
+}
+
+/* Sticky header for scrollable tables */
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}

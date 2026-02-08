@@ -1,0 +1,645 @@
+{% extends "base.html" %}
+{% block title %}{{ target_date.strftime('%A, %b %d %Y') }} - Van List 2026{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-0">
+            {{ target_date.strftime('%A, %B %d, %Y') }}
+            <span class="badge bg-secondary">Week {{ week_number }}</span>
+        </h4>
+        <small class="text-muted">
+            {{ paired|length }} paired |
+            {{ driver_only|length }} driver-only |
+            {{ van_only|length }} van-only |
+            {{ assignments|length }} total |
+            {{ total_vans }} active vans |
+            {{ total_drivers }} active drivers
+        </small>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/?week={{ week_number }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Week
+        </a>
+        <a href="/api/export/daily?target_date={{ target_date.isoformat() }}" class="btn btn-success btn-sm">
+            <i class="bi bi-download"></i> Export Day XLSX
+        </a>
+    </div>
+</div>
+
+{% if can_edit %}
+<!-- Tabbed Assignment Form (operator + admin only) -->
+<div class="card mb-3">
+    <div class="card-header bg-primary text-white py-2">
+        <i class="bi bi-plus-circle"></i> New Assignment
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs mb-3" id="addTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-driver" data-bs-toggle="tab" data-bs-target="#pane-driver" type="button" role="tab">
+                    <i class="bi bi-person-plus"></i> Add Driver
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-van" data-bs-toggle="tab" data-bs-target="#pane-van" type="button" role="tab">
+                    <i class="bi bi-truck"></i> Add Van
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-full" data-bs-toggle="tab" data-bs-target="#pane-full" type="button" role="tab">
+                    <i class="bi bi-link-45deg"></i> Add Full Assignment
+                </button>
+            </li>
+        </ul>
+        <div class="tab-content">
+            <!-- Add Driver Only -->
+            <div class="tab-pane fade show active" id="pane-driver" role="tabpanel">
+                <form id="driver-only-form" class="row g-2 align-items-end">
+                    <input type="hidden" id="form-date" value="{{ target_date.isoformat() }}">
+                    <div class="col-md-6">
+                        <label for="do-driver-search" class="form-label form-label-sm">Driver</label>
+                        <input type="text" class="form-control form-control-sm" id="do-driver-search"
+                               placeholder="Search driver name or ID..." autocomplete="off">
+                        <input type="hidden" id="do-driver-id">
+                        <div id="do-driver-dropdown" class="autocomplete-dropdown"></div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="do-notes" class="form-label form-label-sm">Notes</label>
+                        <input type="text" class="form-control form-control-sm" id="do-notes" placeholder="Optional">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-warning btn-sm w-100">
+                            <i class="bi bi-person-plus"></i> Add Driver
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <!-- Add Van Only -->
+            <div class="tab-pane fade" id="pane-van" role="tabpanel">
+                <form id="van-only-form" class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label for="vo-van-search" class="form-label form-label-sm">Van</label>
+                        <input type="text" class="form-control form-control-sm" id="vo-van-search"
+                               placeholder="Search van code..." autocomplete="off">
+                        <input type="hidden" id="vo-van-id">
+                        <div id="vo-van-dropdown" class="autocomplete-dropdown"></div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="vo-notes" class="form-label form-label-sm">Notes</label>
+                        <input type="text" class="form-control form-control-sm" id="vo-notes" placeholder="Optional">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-info btn-sm w-100">
+                            <i class="bi bi-truck"></i> Add Van
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <!-- Add Full Assignment -->
+            <div class="tab-pane fade" id="pane-full" role="tabpanel">
+                <form id="full-form" class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label for="full-driver-search" class="form-label form-label-sm">Driver</label>
+                        <input type="text" class="form-control form-control-sm" id="full-driver-search"
+                               placeholder="Search driver name or ID..." autocomplete="off">
+                        <input type="hidden" id="full-driver-id">
+                        <div id="full-driver-dropdown" class="autocomplete-dropdown"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="full-van-search" class="form-label form-label-sm">Van</label>
+                        <input type="text" class="form-control form-control-sm" id="full-van-search"
+                               placeholder="Search van code..." autocomplete="off">
+                        <input type="hidden" id="full-van-id">
+                        <div id="full-van-dropdown" class="autocomplete-dropdown"></div>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="full-notes" class="form-label form-label-sm">Notes</label>
+                        <input type="text" class="form-control form-control-sm" id="full-notes" placeholder="Optional">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-link-45deg"></i> Assign
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div id="form-alert" class="mt-2" style="display:none;"></div>
+    </div>
+</div>
+
+<!-- Bulk Upload Section -->
+<div class="card mb-3">
+    <div class="card-header bg-secondary text-white py-2">
+        <i class="bi bi-upload"></i> Bulk Upload for {{ target_date.strftime('%b %d') }}
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <form id="bulk-drivers-form" enctype="multipart/form-data">
+                    <label class="form-label form-label-sm"><i class="bi bi-people"></i> Upload Drivers (XLSX/CSV)</label>
+                    <div class="input-group input-group-sm">
+                        <input type="file" class="form-control form-control-sm" id="bulk-drivers-file" accept=".xlsx,.csv">
+                        <button type="submit" class="btn btn-warning btn-sm">Upload Drivers</button>
+                    </div>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <form id="bulk-vans-form" enctype="multipart/form-data">
+                    <label class="form-label form-label-sm"><i class="bi bi-truck"></i> Upload Vans (XLSX/CSV)</label>
+                    <div class="input-group input-group-sm">
+                        <input type="file" class="form-control form-control-sm" id="bulk-vans-file" accept=".xlsx,.csv">
+                        <button type="submit" class="btn btn-info btn-sm">Upload Vans</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div id="bulk-alert" class="mt-2" style="display:none;"></div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Paired Assignments -->
+<div class="card mb-3">
+    <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-link-45deg"></i> Paired Assignments</span>
+        <span class="badge bg-light text-success">{{ paired|length }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Driver ID</th>
+                    <th>Driver Name</th>
+                    <th>Van (Plate)</th>
+                    <th>Van Description</th>
+                    <th>Op. Status</th>
+                    <th>Notes</th>
+                    <th>Created</th>
+                    {% if can_edit %}<th>Actions</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in paired %}
+                <tr id="row-{{ a.id }}">
+                    <td>{{ loop.index }}</td>
+                    <td>{{ a.driver.employee_id }}</td>
+                    <td>{{ a.driver.name }}</td>
+                    <td><strong>{{ a.van.code }}</strong></td>
+                    <td>{{ a.van.description or '' }}</td>
+                    <td>
+                        {% if a.van.operational_status == 'OPERATIONAL' %}
+                            <span class="badge bg-success">OPERATIONAL</span>
+                        {% elif a.van.operational_status == 'GROUNDED' %}
+                            <span class="badge bg-danger">GROUNDED</span>
+                        {% elif a.van.operational_status %}
+                            <span class="badge bg-secondary">{{ a.van.operational_status }}</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ a.notes or '' }}</td>
+                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
+                    {% if can_edit %}
+                    <td>
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Unpair"
+                                onclick="unpairAssignment({{ a.id }})">
+                            <i class="bi bi-scissors"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                onclick="deleteAssignment({{ a.id }})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                {% if not paired %}
+                <tr>
+                    <td colspan="{% if can_edit %}9{% else %}8{% endif %}" class="text-center text-muted py-2">
+                        No paired assignments yet.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Drivers Awaiting Van -->
+<div class="card mb-3">
+    <div class="card-header bg-warning py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person"></i> Drivers Awaiting Van</span>
+        <span class="badge bg-dark">{{ driver_only|length }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Driver ID</th>
+                    <th>Driver Name</th>
+                    <th>Notes</th>
+                    <th>Created</th>
+                    {% if can_edit %}<th>Pair with Van</th><th>Actions</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in driver_only %}
+                <tr id="row-{{ a.id }}">
+                    <td>{{ loop.index }}</td>
+                    <td>{{ a.driver.employee_id }}</td>
+                    <td>{{ a.driver.name }}</td>
+                    <td>{{ a.notes or '' }}</td>
+                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
+                    {% if can_edit %}
+                    <td>
+                        {% if van_only %}
+                        <select class="form-select form-select-sm" onchange="pairDriverWithVan({{ a.id }}, this.value)" style="min-width:140px;">
+                            <option value="">-- Select Van --</option>
+                            {% for v in van_only %}
+                            <option value="{{ v.id }}">{{ v.van.code }}{% if v.van.description %} - {{ v.van.description }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <small class="text-muted">No vans available</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                onclick="deleteAssignment({{ a.id }})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                {% if not driver_only %}
+                <tr>
+                    <td colspan="{% if can_edit %}7{% else %}5{% endif %}" class="text-center text-muted py-2">
+                        No drivers awaiting van.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Vans Awaiting Driver -->
+<div class="card mb-3">
+    <div class="card-header bg-info text-white py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-truck"></i> Vans Awaiting Driver</span>
+        <span class="badge bg-light text-info">{{ van_only|length }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Van (Plate)</th>
+                    <th>Van Description</th>
+                    <th>Op. Status</th>
+                    <th>Notes</th>
+                    <th>Created</th>
+                    {% if can_edit %}<th>Pair with Driver</th><th>Actions</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in van_only %}
+                <tr id="row-{{ a.id }}">
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ a.van.code }}</strong></td>
+                    <td>{{ a.van.description or '' }}</td>
+                    <td>
+                        {% if a.van.operational_status == 'OPERATIONAL' %}
+                            <span class="badge bg-success">OPERATIONAL</span>
+                        {% elif a.van.operational_status == 'GROUNDED' %}
+                            <span class="badge bg-danger">GROUNDED</span>
+                        {% elif a.van.operational_status %}
+                            <span class="badge bg-secondary">{{ a.van.operational_status }}</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ a.notes or '' }}</td>
+                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
+                    {% if can_edit %}
+                    <td>
+                        {% if driver_only %}
+                        <select class="form-select form-select-sm" onchange="pairVanWithDriver({{ a.id }}, this.value)" style="min-width:140px;">
+                            <option value="">-- Select Driver --</option>
+                            {% for d in driver_only %}
+                            <option value="{{ d.id }}">{{ d.driver.employee_id }} - {{ d.driver.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <small class="text-muted">No drivers available</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                onclick="deleteAssignment({{ a.id }})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                {% if not van_only %}
+                <tr>
+                    <td colspan="{% if can_edit %}8{% else %}6{% endif %}" class="text-center text-muted py-2">
+                        No vans awaiting driver.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CURRENT_DATE = '{{ target_date.isoformat() }}';
+const CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+
+function showAlert(msg, type, containerId) {
+    const alertDiv = document.getElementById(containerId || 'form-alert');
+    alertDiv.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show py-1 mb-0" role="alert">
+        ${msg}
+        <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+    </div>`;
+    alertDiv.style.display = 'block';
+}
+
+async function deleteAssignment(id) {
+    if (!confirm('Remove this assignment?')) return;
+    try {
+        const resp = await fetch(`/api/assignments/${id}`, {method: 'DELETE'});
+        if (resp.status === 401) { window.location.href = '/login'; return; }
+        if (resp.status === 403) { alert('Permission denied.'); return; }
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.detail || 'Error deleting');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+async function unpairAssignment(id) {
+    if (!confirm('Unpair this assignment into separate driver and van entries?')) return;
+    try {
+        const resp = await fetch(`/api/assignments/${id}/unpair`, {method: 'POST'});
+        if (resp.status === 401) { window.location.href = '/login'; return; }
+        if (resp.status === 403) { alert('Permission denied.'); return; }
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.detail || 'Error unpairing');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+async function pairDriverWithVan(driverAssignmentId, vanAssignmentId) {
+    if (!vanAssignmentId) return;
+    try {
+        const resp = await fetch('/api/assignments/pair', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                driver_assignment_id: driverAssignmentId,
+                van_assignment_id: parseInt(vanAssignmentId),
+            }),
+        });
+        if (resp.status === 401) { window.location.href = '/login'; return; }
+        if (resp.status === 403) { alert('Permission denied.'); return; }
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.detail || 'Error pairing');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+async function pairVanWithDriver(vanAssignmentId, driverAssignmentId) {
+    if (!driverAssignmentId) return;
+    try {
+        const resp = await fetch('/api/assignments/pair', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                driver_assignment_id: parseInt(driverAssignmentId),
+                van_assignment_id: vanAssignmentId,
+            }),
+        });
+        if (resp.status === 401) { window.location.href = '/login'; return; }
+        if (resp.status === 403) { alert('Permission denied.'); return; }
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.detail || 'Error pairing');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+if (CAN_EDIT) {
+    // --- Autocomplete logic ---
+    function setupAutocomplete(inputId, hiddenId, dropdownId, apiUrl) {
+        const input = document.getElementById(inputId);
+        const hidden = document.getElementById(hiddenId);
+        const dropdown = document.getElementById(dropdownId);
+        let debounceTimer;
+
+        input.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            hidden.value = '';
+            input.classList.remove('is-valid');
+            debounceTimer = setTimeout(() => fetchResults(input.value), 200);
+        });
+
+        input.addEventListener('focus', () => {
+            if (!hidden.value) fetchResults(input.value);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        function fetchResults(query) {
+            const url = `${apiUrl}?assignment_date=${CURRENT_DATE}&q=${encodeURIComponent(query)}`;
+            fetch(url)
+                .then(r => {
+                    if (r.status === 401) { window.location.href = '/login'; return []; }
+                    return r.json();
+                })
+                .then(items => {
+                    if (!items) return;
+                    dropdown.innerHTML = '';
+                    if (items.length === 0) {
+                        dropdown.innerHTML = '<div class="autocomplete-item text-muted">No results</div>';
+                        dropdown.style.display = 'block';
+                        return;
+                    }
+                    items.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'autocomplete-item';
+                        if (item.code) {
+                            let label = item.code;
+                            if (item.description) label += ` - ${item.description}`;
+                            if (item.operational_status) {
+                                const cls = item.operational_status === 'OPERATIONAL' ? 'bg-success' : 'bg-danger';
+                                div.innerHTML = `${label} <span class="badge ${cls}" style="font-size:0.65rem">${item.operational_status}</span>`;
+                            } else {
+                                div.textContent = label;
+                            }
+                        } else {
+                            div.textContent = `${item.employee_id} - ${item.name}`;
+                        }
+                        div.addEventListener('click', () => {
+                            hidden.value = item.id;
+                            input.value = item.code || `${item.employee_id} - ${item.name}`;
+                            input.classList.add('is-valid');
+                            dropdown.style.display = 'none';
+                        });
+                        dropdown.appendChild(div);
+                    });
+                    dropdown.style.display = 'block';
+                });
+        }
+    }
+
+    // Driver-only form autocomplete
+    setupAutocomplete('do-driver-search', 'do-driver-id', 'do-driver-dropdown', '/api/assignments/available-drivers');
+
+    // Van-only form autocomplete
+    setupAutocomplete('vo-van-search', 'vo-van-id', 'vo-van-dropdown', '/api/assignments/available-vans');
+
+    // Full assignment form autocomplete
+    setupAutocomplete('full-driver-search', 'full-driver-id', 'full-driver-dropdown', '/api/assignments/available-drivers');
+    setupAutocomplete('full-van-search', 'full-van-id', 'full-van-dropdown', '/api/assignments/available-vans');
+
+    // --- Driver-only submit ---
+    document.getElementById('driver-only-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const driverId = document.getElementById('do-driver-id').value;
+        const notes = document.getElementById('do-notes').value;
+        if (!driverId) { showAlert('Please select a driver from the dropdown.', 'warning'); return; }
+        try {
+            const resp = await fetch('/api/assignments', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ assignment_date: CURRENT_DATE, driver_id: parseInt(driverId), notes: notes || null }),
+            });
+            if (resp.status === 401) { window.location.href = '/login'; return; }
+            if (resp.status === 403) { showAlert('Permission denied.', 'danger'); return; }
+            const data = await resp.json();
+            if (!resp.ok) { showAlert(data.detail || 'Error', 'danger'); return; }
+            window.location.reload();
+        } catch (err) { showAlert('Network error: ' + err.message, 'danger'); }
+    });
+
+    // --- Van-only submit ---
+    document.getElementById('van-only-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const vanId = document.getElementById('vo-van-id').value;
+        const notes = document.getElementById('vo-notes').value;
+        if (!vanId) { showAlert('Please select a van from the dropdown.', 'warning'); return; }
+        try {
+            const resp = await fetch('/api/assignments', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ assignment_date: CURRENT_DATE, van_id: parseInt(vanId), notes: notes || null }),
+            });
+            if (resp.status === 401) { window.location.href = '/login'; return; }
+            if (resp.status === 403) { showAlert('Permission denied.', 'danger'); return; }
+            const data = await resp.json();
+            if (!resp.ok) { showAlert(data.detail || 'Error', 'danger'); return; }
+            window.location.reload();
+        } catch (err) { showAlert('Network error: ' + err.message, 'danger'); }
+    });
+
+    // --- Full assignment submit ---
+    document.getElementById('full-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const driverId = document.getElementById('full-driver-id').value;
+        const vanId = document.getElementById('full-van-id').value;
+        const notes = document.getElementById('full-notes').value;
+        if (!driverId) { showAlert('Please select a driver from the dropdown.', 'warning'); return; }
+        if (!vanId) { showAlert('Please select a van from the dropdown.', 'warning'); return; }
+        try {
+            const resp = await fetch('/api/assignments', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    assignment_date: CURRENT_DATE,
+                    driver_id: parseInt(driverId),
+                    van_id: parseInt(vanId),
+                    notes: notes || null,
+                }),
+            });
+            if (resp.status === 401) { window.location.href = '/login'; return; }
+            if (resp.status === 403) { showAlert('Permission denied.', 'danger'); return; }
+            const data = await resp.json();
+            if (!resp.ok) { showAlert(data.detail || 'Error', 'danger'); return; }
+            window.location.reload();
+        } catch (err) { showAlert('Network error: ' + err.message, 'danger'); }
+    });
+
+    // --- Bulk upload forms ---
+    document.getElementById('bulk-drivers-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('bulk-drivers-file');
+        if (!fileInput.files.length) { showAlert('Please select a file.', 'warning', 'bulk-alert'); return; }
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        try {
+            const resp = await fetch(`/api/assignments/bulk-upload-drivers?assignment_date=${CURRENT_DATE}`, {
+                method: 'POST', body: formData,
+            });
+            if (resp.status === 401) { window.location.href = '/login'; return; }
+            if (resp.status === 403) { showAlert('Permission denied.', 'danger', 'bulk-alert'); return; }
+            const data = await resp.json();
+            if (!resp.ok) { showAlert(data.detail || 'Error uploading', 'danger', 'bulk-alert'); return; }
+            showAlert(`Drivers uploaded: ${data.assignments_created} created, ${data.assignments_skipped} already assigned.`, 'success', 'bulk-alert');
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (err) { showAlert('Network error: ' + err.message, 'danger', 'bulk-alert'); }
+    });
+
+    document.getElementById('bulk-vans-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('bulk-vans-file');
+        if (!fileInput.files.length) { showAlert('Please select a file.', 'warning', 'bulk-alert'); return; }
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        try {
+            const resp = await fetch(`/api/assignments/bulk-upload-vans?assignment_date=${CURRENT_DATE}`, {
+                method: 'POST', body: formData,
+            });
+            if (resp.status === 401) { window.location.href = '/login'; return; }
+            if (resp.status === 403) { showAlert('Permission denied.', 'danger', 'bulk-alert'); return; }
+            const data = await resp.json();
+            if (!resp.ok) { showAlert(data.detail || 'Error uploading', 'danger', 'bulk-alert'); return; }
+            showAlert(`Vans uploaded: ${data.assignments_created} created, ${data.assignments_skipped} already assigned.`, 'success', 'bulk-alert');
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (err) { showAlert('Network error: ' + err.message, 'danger', 'bulk-alert'); }
+    });
+}
+</script>
+{% endblock %}

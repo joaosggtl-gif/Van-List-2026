@@ -1,0 +1,233 @@
+from datetime import date
+
+from fastapi import APIRouter, Depends, Request, Query
+from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session, joinedload
+
+from app.auth import get_current_user_optional, ROLE_HIERARCHY
+from app.database import get_db
+from app.models import DailyAssignment, Van, Driver, User, AuditLog
+from app.services.week_service import (
+    get_current_week_number,
+    get_week_dates,
+    get_week_days,
+    get_week_number,
+)
+
+router = APIRouter(tags=["pages"])
+templates = Jinja2Templates(directory="app/templates")
+
+
+def _require_auth(request: Request, db: Session) -> User:
+    """Check auth for page routes; redirect to login if unauthenticated."""
+    user = get_current_user_optional(request, db)
+    if user is None:
+        raise _redirect_to_login()
+    return user
+
+
+def _redirect_to_login():
+    """Return a redirect response to the login page."""
+    from fastapi import HTTPException
+    response = RedirectResponse(url="/login", status_code=302)
+    raise HTTPException(status_code=302, detail="Redirect", headers={"Location": "/login"})
+
+
+def _ctx(request: Request, user: User, **kwargs):
+    """Build base template context with user info."""
+    return {
+        "request": request,
+        "user": user,
+        "user_role": user.role,
+        "is_admin": user.role == "admin",
+        "can_edit": ROLE_HIERARCHY.get(user.role, 0) >= ROLE_HIERARCHY["operator"],
+        **kwargs,
+    }
+
+
+def _partition_assignments(assignments):
+    """Partition assignments into paired, driver_only, and van_only lists."""
+    paired = []
+    driver_only = []
+    van_only = []
+    for a in assignments:
+        if a.van_id is not None and a.driver_id is not None:
+            paired.append(a)
+        elif a.driver_id is not None and a.van_id is None:
+            driver_only.append(a)
+        elif a.van_id is not None and a.driver_id is None:
+            van_only.append(a)
+    return paired, driver_only, van_only
+
+
+@router.get("/login")
+def login_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_optional(request, db)
+    if user:
+        return RedirectResponse(url="/", status_code=302)
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@router.get("/")
+def index(
+    request: Request,
+    week: int | None = None,
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_optional(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    if week is None:
+        week = get_current_week_number()
+
+    week_start, week_end = get_week_dates(week)
+    days = get_week_days(week)
+
+    assignments = (
+        db.query(DailyAssignment)
+        .options(joinedload(DailyAssignment.van), joinedload(DailyAssignment.driver))
+        .filter(
+            DailyAssignment.assignment_date >= week_start,
+            DailyAssignment.assignment_date <= week_end,
+        )
+        .order_by(DailyAssignment.assignment_date, DailyAssignment.id)
+        .all()
+    )
+
+    assignments_by_date = {}
+    counts_by_date = {}
+    for d in days:
+        assignments_by_date[d] = []
+        counts_by_date[d] = {"paired": 0, "total": 0}
+    for a in assignments:
+        assignments_by_date[a.assignment_date].append(a)
+        counts_by_date[a.assignment_date]["total"] += 1
+        if a.van_id is not None and a.driver_id is not None:
+            counts_by_date[a.assignment_date]["paired"] += 1
+
+    total_vans = db.query(Van).filter(Van.active == True).count()
+    total_drivers = db.query(Driver).filter(Driver.active == True).count()
+
+    return templates.TemplateResponse("index.html", _ctx(
+        request, user,
+        current_week=week,
+        week_start=week_start,
+        week_end=week_end,
+        days=days,
+        assignments_by_date=assignments_by_date,
+        counts_by_date=counts_by_date,
+        total_vans=total_vans,
+        total_drivers=total_drivers,
+        today=date.today(),
+    ))
+
+
+@router.get("/day/{target_date}")
+def daily_page(
+    request: Request,
+    target_date: date,
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_optional(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    assignments = (
+        db.query(DailyAssignment)
+        .options(joinedload(DailyAssignment.van), joinedload(DailyAssignment.driver))
+        .filter(DailyAssignment.assignment_date == target_date)
+        .order_by(DailyAssignment.id)
+        .all()
+    )
+
+    paired, driver_only, van_only = _partition_assignments(assignments)
+
+    week_num = get_week_number(target_date)
+    total_vans = db.query(Van).filter(Van.active == True).count()
+    total_drivers = db.query(Driver).filter(Driver.active == True).count()
+
+    return templates.TemplateResponse("daily.html", _ctx(
+        request, user,
+        target_date=target_date,
+        week_number=week_num,
+        assignments=assignments,
+        paired=paired,
+        driver_only=driver_only,
+        van_only=van_only,
+        total_vans=total_vans,
+        total_drivers=total_drivers,
+    ))
+
+
+@router.get("/upload")
+def upload_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_optional(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    if user.role != "admin":
+        return RedirectResponse(url="/", status_code=302)
+    return templates.TemplateResponse("upload.html", _ctx(request, user))
+
+
+@router.get("/lists")
+def lists_page(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_optional(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    vans = db.query(Van).order_by(Van.active.desc(), Van.code).all()
+    drivers = db.query(Driver).order_by(Driver.active.desc(), Driver.name).all()
+    return templates.TemplateResponse("lists.html", _ctx(
+        request, user,
+        vans=vans,
+        drivers=drivers,
+    ))
+
+
+@router.get("/users")
+def users_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_optional(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    if user.role != "admin":
+        return RedirectResponse(url="/", status_code=302)
+
+    users = db.query(User).order_by(User.username).all()
+    return templates.TemplateResponse("users.html", _ctx(request, user, users=users))
+
+
+@router.get("/audit")
+def audit_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_optional(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    if user.role != "admin":
+        return RedirectResponse(url="/", status_code=302)
+
+    per_page = 50
+    total = db.query(AuditLog).count()
+    logs = (
+        db.query(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    total_pages = (total + per_page - 1) // per_page
+
+    return templates.TemplateResponse("audit.html", _ctx(
+        request, user,
+        logs=logs,
+        page=page,
+        total_pages=total_pages,
+        total=total,
+    ))

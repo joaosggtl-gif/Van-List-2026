@@ -1,0 +1,19 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-me-use-openssl-rand-hex-32}
+      - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin123}
+      - DATABASE_URL=sqlite:///data/vanlist.db
+      - JWT_EXPIRE_MINUTES=480
+    volumes:
+      - vanlist-data:/app/data
+      - vanlist-backups:/app/backups
+    restart: unless-stopped
+
+volumes:
+  vanlist-data:
+  vanlist-backups:

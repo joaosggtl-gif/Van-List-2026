@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Week {{ current_week }} - Van List 2026{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-0">
+            Week {{ current_week }}
+            <small class="text-muted">{{ week_start.strftime('%b %d') }} - {{ week_end.strftime('%b %d, %Y') }}</small>
+        </h4>
+        <small class="text-muted">{{ total_vans }} active vans | {{ total_drivers }} active drivers</small>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="/?week={{ current_week - 1 }}" class="btn btn-outline-secondary btn-sm" {% if current_week <= 1 %}disabled{% endif %}>
+            <i class="bi bi-chevron-left"></i> Prev
+        </a>
+        <a href="/" class="btn btn-outline-primary btn-sm">Today</a>
+        <a href="/?week={{ current_week + 1 }}" class="btn btn-outline-secondary btn-sm">
+            Next <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="/api/export/weekly?week={{ current_week }}" class="btn btn-success btn-sm">
+            <i class="bi bi-download"></i> Export Week XLSX
+        </a>
+    </div>
+</div>
+
+<div class="row">
+{% for day in days %}
+    {% set day_assignments = assignments_by_date[day] %}
+    {% set day_counts = counts_by_date[day] %}
+    {% set is_today = day == today %}
+    <div class="col-12 col-xl mb-3">
+        <div class="card {% if is_today %}border-primary{% endif %} h-100">
+            <div class="card-header {% if is_today %}bg-primary text-white{% else %}bg-light{% endif %} d-flex justify-content-between align-items-center py-2">
+                <div>
+                    <strong>{{ day.strftime('%a') }}</strong>
+                    <br><small>{{ day.strftime('%b %d') }}</small>
+                </div>
+                <div class="d-flex gap-1">
+                    <span class="badge {% if is_today %}bg-light text-primary{% else %}bg-secondary{% endif %}" title="{{ day_counts.paired }} paired / {{ day_counts.total }} total">
+                        {% if day_counts.paired == day_counts.total %}
+                            {{ day_counts.total }}
+                        {% else %}
+                            {{ day_counts.paired }}/{{ day_counts.total }}
+                        {% endif %}
+                    </span>
+                    <a href="/day/{{ day.isoformat() }}" class="btn btn-sm {% if is_today %}btn-light{% else %}btn-outline-secondary{% endif %}" title="{% if can_edit %}Edit day{% else %}View day{% endif %}">
+                        <i class="bi bi-{% if can_edit %}pencil-square{% else %}eye{% endif %}"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-2 day-card-body">
+                {% if day_assignments %}
+                    {% for a in day_assignments %}
+                    {% if a.van_id and a.driver_id %}
+                    {# Paired #}
+                    <div class="assignment-chip mb-1 {% if a.van.operational_status == 'GROUNDED' %}chip-grounded{% endif %}">
+                        <small>
+                            <strong>{{ a.van.code }}</strong>
+                            {% if a.van.operational_status == 'GROUNDED' %}<i class="bi bi-exclamation-triangle text-danger"></i>{% endif %}
+                            <i class="bi bi-arrow-right"></i>
+                            {{ a.driver.name }}
+                        </small>
+                    </div>
+                    {% elif a.driver_id and not a.van_id %}
+                    {# Driver only #}
+                    <div class="assignment-chip chip-unpaired mb-1">
+                        <small>
+                            <i class="bi bi-person"></i>
+                            {{ a.driver.name }}
+                        </small>
+                    </div>
+                    {% elif a.van_id and not a.driver_id %}
+                    {# Van only #}
+                    <div class="assignment-chip chip-unpaired mb-1 {% if a.van.operational_status == 'GROUNDED' %}chip-grounded{% endif %}">
+                        <small>
+                            <i class="bi bi-truck"></i>
+                            <strong>{{ a.van.code }}</strong>
+                            {% if a.van.operational_status == 'GROUNDED' %}<i class="bi bi-exclamation-triangle text-danger"></i>{% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <small class="text-muted">No assignments</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endfor %}
+</div>
+{% endblock %}

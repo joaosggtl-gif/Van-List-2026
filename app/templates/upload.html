@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Upload - Van List 2026{% endblock %}
+
+{% block content %}
+<h4 class="mb-3"><i class="bi bi-cloud-upload"></i> Upload Vans & Drivers</h4>
+
+<div class="row">
+    <!-- Upload Vans -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header bg-info text-white py-2">
+                <i class="bi bi-truck"></i> Upload Vans
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    Upload a CSV or XLSX file with columns: <strong>code</strong> (required), <strong>description</strong> (optional).
+                    Existing vans (same code) will have their description updated.
+                </p>
+                <form id="vans-form" enctype="multipart/form-data">
+                    <div class="mb-2">
+                        <input type="file" class="form-control form-control-sm" id="vans-file" accept=".csv,.xlsx,.xls" required>
+                    </div>
+                    <button type="submit" class="btn btn-info btn-sm text-white" id="vans-btn">
+                        <i class="bi bi-upload"></i> Upload Vans
+                    </button>
+                </form>
+                <div id="vans-result" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Drivers -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header bg-warning py-2">
+                <i class="bi bi-person-badge"></i> Upload Drivers
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    Upload a CSV or XLSX file. Supports Schedule format (<strong>Associate name</strong> + <strong>Transporter ID</strong>, auto-detected)
+                    or simple CSV (<strong>employee_id</strong>, <strong>name</strong>).
+                    Existing drivers (same ID) will have their name updated.
+                </p>
+                <form id="drivers-form" enctype="multipart/form-data">
+                    <div class="mb-2">
+                        <input type="file" class="form-control form-control-sm" id="drivers-file" accept=".csv,.xlsx,.xls" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning btn-sm" id="drivers-btn">
+                        <i class="bi bi-upload"></i> Upload Drivers
+                    </button>
+                </form>
+                <div id="drivers-result" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File format guide -->
+<div class="card">
+    <div class="card-header bg-light py-2">
+        <i class="bi bi-info-circle"></i> File Format Guide
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>VehiclesData format (auto-detected):</h6>
+                <p class="small text-muted mb-1">Upload the VehiclesData XLSX directly. The system reads <strong>licensePlateNumber</strong>, <strong>operationalStatus</strong>, <strong>make</strong>, and <strong>model</strong> automatically.</p>
+                <h6 class="mt-2">Simple CSV format:</h6>
+                <pre class="bg-light p-2 rounded small">code,description,operational_status
+HT23KDK,OTHER OTHER,OPERATIONAL
+LD71MHM,Ford Transit,OPERATIONAL
+LC21YOO,Ford Transit,GROUNDED</pre>
+            </div>
+            <div class="col-md-6">
+                <h6>Schedule format (auto-detected):</h6>
+                <p class="small text-muted mb-1">Upload the weekly Schedule XLSX directly. The system reads <strong>Associate name</strong> and <strong>Transporter ID</strong> automatically.</p>
+                <h6 class="mt-2">Simple CSV format:</h6>
+                <pre class="bg-light p-2 rounded small">employee_id,name
+EMP-001,John Smith
+EMP-002,Maria Garcia
+EMP-003,David Johnson</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setupUpload(formId, fileId, btnId, resultId, url) {
+    document.getElementById(formId).addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById(fileId);
+        const btn = document.getElementById(btnId);
+        const resultDiv = document.getElementById(resultId);
+
+        if (!fileInput.files[0]) return;
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+        resultDiv.innerHTML = '';
+
+        try {
+            const resp = await fetch(url, { method: 'POST', body: formData });
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                resultDiv.innerHTML = `<div class="alert alert-danger py-1 small">${data.detail || 'Upload failed'}</div>`;
+                return;
+            }
+
+            let html = `<div class="alert alert-success py-1 small">
+                <strong>Upload complete:</strong> ${data.records_imported} imported, ${data.records_skipped} updated/skipped, ${data.records_errors} errors (of ${data.records_total} total)
+            </div>`;
+
+            if (data.errors && data.errors.length > 0) {
+                html += `<div class="alert alert-warning py-1 small"><strong>Errors:</strong><ul class="mb-0">`;
+                data.errors.forEach(err => { html += `<li>${err}</li>`; });
+                html += `</ul></div>`;
+            }
+
+            resultDiv.innerHTML = html;
+        } catch (err) {
+            resultDiv.innerHTML = `<div class="alert alert-danger py-1 small">Network error: ${err.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-upload"></i> Upload';
+        }
+    });
+}
+
+setupUpload('vans-form', 'vans-file', 'vans-btn', 'vans-result', '/api/upload/vans');
+setupUpload('drivers-form', 'drivers-file', 'drivers-btn', 'drivers-result', '/api/upload/drivers');
+</script>
+{% endblock %}
