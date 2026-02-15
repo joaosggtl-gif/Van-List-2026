@@ -133,12 +133,20 @@
 <div class="card mb-3">
     <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
         <span><i class="bi bi-link-45deg"></i> Paired Assignments</span>
-        <span class="badge bg-light text-success">{{ paired|length }}</span>
+        <div class="d-flex align-items-center gap-2">
+            {% if can_edit and paired %}
+            <button class="btn btn-danger btn-sm py-0 px-2" onclick="removeSelectedPaired()" id="btn-remove-paired" style="display:none;">
+                <i class="bi bi-trash"></i> Remove Selected
+            </button>
+            {% endif %}
+            <span class="badge bg-light text-success">{{ paired|length }}</span>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0">
             <thead class="table-dark">
                 <tr>
+                    {% if can_edit %}<th style="width:30px;"><input type="checkbox" id="select-all-paired" onchange="toggleAllPairedCheckboxes(this)"></th>{% endif %}
                     <th>#</th>
                     <th>Driver ID</th>
                     <th>Driver Name</th>
@@ -152,6 +160,7 @@
             <tbody>
                 {% for a in paired %}
                 <tr id="row-{{ a.id }}">
+                    {% if can_edit %}<td><input type="checkbox" class="paired-checkbox" value="{{ a.id }}" onchange="updateRemovePairedBtn()"></td>{% endif %}
                     <td>{{ loop.index }}</td>
                     <td>{{ a.driver.employee_id }}</td>
                     <td>{{ a.driver.name }}</td>
@@ -197,7 +206,7 @@
                 {% endfor %}
                 {% if not paired %}
                 <tr>
-                    <td colspan="{% if can_edit %}8{% else %}7{% endif %}" class="text-center text-muted py-2">
+                    <td colspan="{% if can_edit %}9{% else %}7{% endif %}" class="text-center text-muted py-2">
                         No paired assignments yet.
                     </td>
                 </tr>
@@ -444,6 +453,41 @@ async function removeSelectedDrivers() {
     const ids = Array.from(document.querySelectorAll('.driver-checkbox:checked')).map(cb => parseInt(cb.value));
     if (ids.length === 0) return;
     if (!confirm(`Remove ${ids.length} selected driver assignment(s)?`)) return;
+    try {
+        const results = await Promise.all(ids.map(id =>
+            fetch(`/api/assignments/${id}`, {method: 'DELETE'})
+        ));
+        const unauthorized = results.find(r => r.status === 401);
+        if (unauthorized) { window.location.href = '/login'; return; }
+        const forbidden = results.find(r => r.status === 403);
+        if (forbidden) { alert('Permission denied.'); return; }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+            alert(`${ids.length - failed.length} removed, ${failed.length} failed.`);
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+function toggleAllPairedCheckboxes(source) {
+    document.querySelectorAll('.paired-checkbox').forEach(cb => { cb.checked = source.checked; });
+    updateRemovePairedBtn();
+}
+
+function updateRemovePairedBtn() {
+    const btn = document.getElementById('btn-remove-paired');
+    if (!btn) return;
+    const checked = document.querySelectorAll('.paired-checkbox:checked').length;
+    btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    btn.innerHTML = `<i class="bi bi-trash"></i> Remove Selected (${checked})`;
+}
+
+async function removeSelectedPaired() {
+    const ids = Array.from(document.querySelectorAll('.paired-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Remove ${ids.length} selected paired assignment(s)?`)) return;
     try {
         const results = await Promise.all(ids.map(id =>
             fetch(`/api/assignments/${id}`, {method: 'DELETE'})

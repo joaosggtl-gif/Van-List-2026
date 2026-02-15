@@ -54,6 +54,21 @@ def toggle_van(
     return {"id": van.id, "active": van.active}
 
 
+@router.delete("/{van_id}")
+def delete_van(
+    van_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    van = db.query(Van).filter(Van.id == van_id).first()
+    if not van:
+        raise HTTPException(status_code=404, detail="Van not found")
+    van.active = False
+    log_action(db, user, "delete", "van", van.id, f"Deactivated van '{van.code}'")
+    db.commit()
+    return {"id": van.id, "active": van.active}
+
+
 @router.post("/{van_id}/operational-status")
 def update_operational_status(
     van_id: int,

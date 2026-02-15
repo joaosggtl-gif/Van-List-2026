@@ -9,11 +9,19 @@
         <div class="card">
             <div class="card-header bg-info text-white py-2 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-truck"></i> Vans ({{ vans|length }})</span>
+                <div class="d-flex align-items-center gap-2">
+                    {% if is_admin and vans %}
+                    <button class="btn btn-danger btn-sm py-0 px-2" onclick="deactivateSelectedVans()" id="btn-deactivate-vans" style="display:none;">
+                        <i class="bi bi-trash"></i> Deactivate Selected
+                    </button>
+                    {% endif %}
+                </div>
             </div>
             <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                 <table class="table table-sm table-hover mb-0">
                     <thead class="table-light sticky-top">
                         <tr>
+                            {% if is_admin %}<th style="width:30px;"><input type="checkbox" id="select-all-vans" onchange="toggleAllVanCheckboxes(this)"></th>{% endif %}
                             <th>Plate</th>
                             <th>Description</th>
                             <th>Op. Status</th>
@@ -24,6 +32,7 @@
                     <tbody>
                         {% for v in vans %}
                         <tr class="{% if not v.active %}table-secondary{% endif %}">
+                            {% if is_admin %}<td><input type="checkbox" class="van-checkbox" value="{{ v.id }}" onchange="updateDeactivateVansBtn()"></td>{% endif %}
                             <td><strong>{{ v.code }}</strong></td>
                             <td>{{ v.description or '-' }}</td>
                             <td>
@@ -71,7 +80,7 @@
                         </tr>
                         {% endfor %}
                         {% if not vans %}
-                        <tr><td colspan="{% if is_admin %}5{% else %}4{% endif %}" class="text-center text-muted py-3">No vans. Upload a list first.</td></tr>
+                        <tr><td colspan="{% if is_admin %}6{% else %}4{% endif %}" class="text-center text-muted py-3">No vans. Upload a list first.</td></tr>
                         {% endif %}
                     </tbody>
                 </table>
@@ -83,11 +92,19 @@
         <div class="card">
             <div class="card-header bg-warning py-2 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-person-badge"></i> Drivers ({{ drivers|length }})</span>
+                <div class="d-flex align-items-center gap-2">
+                    {% if is_admin and drivers %}
+                    <button class="btn btn-danger btn-sm py-0 px-2" onclick="deactivateSelectedDrivers()" id="btn-deactivate-drivers" style="display:none;">
+                        <i class="bi bi-trash"></i> Deactivate Selected
+                    </button>
+                    {% endif %}
+                </div>
             </div>
             <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                 <table class="table table-sm table-hover mb-0">
                     <thead class="table-light sticky-top">
                         <tr>
+                            {% if is_admin %}<th style="width:30px;"><input type="checkbox" id="select-all-drivers" onchange="toggleAllDrvCheckboxes(this)"></th>{% endif %}
                             <th>Employee ID</th>
                             <th>Name</th>
                             <th>Status</th>
@@ -97,6 +114,7 @@
                     <tbody>
                         {% for d in drivers %}
                         <tr class="{% if not d.active %}table-secondary{% endif %}">
+                            {% if is_admin %}<td><input type="checkbox" class="drv-checkbox" value="{{ d.id }}" onchange="updateDeactivateDrvsBtn()"></td>{% endif %}
                             <td><strong>{{ d.employee_id }}</strong></td>
                             <td>{{ d.name }}</td>
                             <td>
@@ -117,7 +135,7 @@
                         </tr>
                         {% endfor %}
                         {% if not drivers %}
-                        <tr><td colspan="{% if is_admin %}4{% else %}3{% endif %}" class="text-center text-muted py-3">No drivers. Upload a list first.</td></tr>
+                        <tr><td colspan="{% if is_admin %}5{% else %}3{% endif %}" class="text-center text-muted py-3">No drivers. Upload a list first.</td></tr>
                         {% endif %}
                     </tbody>
                 </table>
@@ -129,11 +147,19 @@
         <div class="card">
             <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-link-45deg"></i> Pre-assigned Vans ({{ active_drivers|length }})</span>
+                <div class="d-flex align-items-center gap-2">
+                    {% if can_edit %}
+                    <button class="btn btn-danger btn-sm py-0 px-2" onclick="removeSelectedPreassignments()" id="btn-remove-pa" style="display:none;">
+                        <i class="bi bi-trash"></i> Remove Selected
+                    </button>
+                    {% endif %}
+                </div>
             </div>
             <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                 <table class="table table-sm table-hover mb-0">
                     <thead class="table-light sticky-top">
                         <tr>
+                            {% if can_edit %}<th style="width:30px;"><input type="checkbox" id="select-all-pa" onchange="toggleAllPaCheckboxes(this)"></th>{% endif %}
                             <th>Driver</th>
                             <th>Van</th>
                         </tr>
@@ -141,6 +167,14 @@
                     <tbody>
                         {% for d in active_drivers %}
                         <tr>
+                            {% if can_edit %}
+                            <td>
+                                {% set pa = preassign_map.get(d.id) %}
+                                {% if pa %}
+                                <input type="checkbox" class="pa-checkbox" value="{{ pa.id }}" onchange="updateRemovePaBtn()">
+                                {% endif %}
+                            </td>
+                            {% endif %}
                             <td>{{ d.name }}</td>
                             <td style="position:relative;">
                                 {% set pa = preassign_map.get(d.id) %}
@@ -172,7 +206,7 @@
                         </tr>
                         {% endfor %}
                         {% if not active_drivers %}
-                        <tr><td colspan="2" class="text-center text-muted py-3">No active drivers.</td></tr>
+                        <tr><td colspan="{% if can_edit %}3{% else %}2{% endif %}" class="text-center text-muted py-3">No active drivers.</td></tr>
                         {% endif %}
                     </tbody>
                 </table>
@@ -184,6 +218,114 @@
 
 {% block scripts %}
 <script>
+// --- Multi-select: Vans ---
+function toggleAllVanCheckboxes(source) {
+    document.querySelectorAll('.van-checkbox').forEach(cb => { cb.checked = source.checked; });
+    updateDeactivateVansBtn();
+}
+
+function updateDeactivateVansBtn() {
+    const btn = document.getElementById('btn-deactivate-vans');
+    if (!btn) return;
+    const checked = document.querySelectorAll('.van-checkbox:checked').length;
+    btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    btn.innerHTML = `<i class="bi bi-trash"></i> Deactivate Selected (${checked})`;
+}
+
+async function deactivateSelectedVans() {
+    const ids = Array.from(document.querySelectorAll('.van-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Deactivate ${ids.length} selected van(s)?`)) return;
+    try {
+        const results = await Promise.all(ids.map(id =>
+            fetch(`/api/vans/${id}`, {method: 'DELETE'})
+        ));
+        const unauthorized = results.find(r => r.status === 401);
+        if (unauthorized) { window.location.href = '/login'; return; }
+        const forbidden = results.find(r => r.status === 403);
+        if (forbidden) { alert('Admin role required.'); return; }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+            alert(`${ids.length - failed.length} deactivated, ${failed.length} failed.`);
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+// --- Multi-select: Drivers ---
+function toggleAllDrvCheckboxes(source) {
+    document.querySelectorAll('.drv-checkbox').forEach(cb => { cb.checked = source.checked; });
+    updateDeactivateDrvsBtn();
+}
+
+function updateDeactivateDrvsBtn() {
+    const btn = document.getElementById('btn-deactivate-drivers');
+    if (!btn) return;
+    const checked = document.querySelectorAll('.drv-checkbox:checked').length;
+    btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    btn.innerHTML = `<i class="bi bi-trash"></i> Deactivate Selected (${checked})`;
+}
+
+async function deactivateSelectedDrivers() {
+    const ids = Array.from(document.querySelectorAll('.drv-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Deactivate ${ids.length} selected driver(s)?`)) return;
+    try {
+        const results = await Promise.all(ids.map(id =>
+            fetch(`/api/drivers/${id}`, {method: 'DELETE'})
+        ));
+        const unauthorized = results.find(r => r.status === 401);
+        if (unauthorized) { window.location.href = '/login'; return; }
+        const forbidden = results.find(r => r.status === 403);
+        if (forbidden) { alert('Admin role required.'); return; }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+            alert(`${ids.length - failed.length} deactivated, ${failed.length} failed.`);
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+// --- Multi-select: Pre-assignments ---
+function toggleAllPaCheckboxes(source) {
+    document.querySelectorAll('.pa-checkbox').forEach(cb => { cb.checked = source.checked; });
+    updateRemovePaBtn();
+}
+
+function updateRemovePaBtn() {
+    const btn = document.getElementById('btn-remove-pa');
+    if (!btn) return;
+    const checked = document.querySelectorAll('.pa-checkbox:checked').length;
+    btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    btn.innerHTML = `<i class="bi bi-trash"></i> Remove Selected (${checked})`;
+}
+
+async function removeSelectedPreassignments() {
+    const ids = Array.from(document.querySelectorAll('.pa-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Remove ${ids.length} selected pre-assignment(s)?`)) return;
+    try {
+        const results = await Promise.all(ids.map(id =>
+            fetch(`/api/preassignments/${id}`, {method: 'DELETE'})
+        ));
+        const unauthorized = results.find(r => r.status === 401);
+        if (unauthorized) { window.location.href = '/login'; return; }
+        const forbidden = results.find(r => r.status === 403);
+        if (forbidden) { alert('Permission denied.'); return; }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+            alert(`${ids.length - failed.length} removed, ${failed.length} failed.`);
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
 async function toggleVan(id) {
     const r = await fetch(`/api/vans/${id}/toggle`, {method: 'POST'});
     if (r.status === 401) { window.location.href = '/login'; return; }

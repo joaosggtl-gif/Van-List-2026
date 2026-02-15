@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
@@ -34,6 +34,21 @@ def search_drivers(
             (Driver.name.ilike(f"%{q}%")) | (Driver.employee_id.ilike(f"%{q}%"))
         )
     return query.order_by(Driver.name).limit(20).all()
+
+
+@router.delete("/{driver_id}")
+def delete_driver(
+    driver_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    driver.active = False
+    log_action(db, user, "delete", "driver", driver.id, f"Deactivated driver '{driver.name}'")
+    db.commit()
+    return {"id": driver.id, "active": driver.active}
 
 
 @router.post("/{driver_id}/toggle")
