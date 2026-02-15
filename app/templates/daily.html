@@ -305,6 +305,28 @@
         <div id="bulk-alert" class="mt-2" style="display:none;"></div>
     </div>
 </div>
+
+<!-- Unrecognized Names (shown after driver_route upload) -->
+<div id="unrecognized-card" class="card mb-3 border-danger" style="display:none;">
+    <div class="card-header bg-danger text-white py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-exclamation-triangle"></i> Unrecognized Names</span>
+        <span class="badge bg-light text-danger" id="unrecognized-count">0</span>
+    </div>
+    <div class="card-body p-0">
+        <p class="text-muted small px-3 pt-2 mb-1">These names from the uploaded file did not match any registered driver.</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Name in File</th>
+                    </tr>
+                </thead>
+                <tbody id="unrecognized-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 {% endblock %}
@@ -773,6 +795,21 @@ if (CAN_EDIT) {
         } catch (err) { showAlert('Network error: ' + err.message, 'danger'); }
     });
 
+    function showUnrecognizedNames(names) {
+        const card = document.getElementById('unrecognized-card');
+        const body = document.getElementById('unrecognized-body');
+        const count = document.getElementById('unrecognized-count');
+        body.innerHTML = '';
+        names.forEach((name, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${i + 1}</td><td>${name}</td>`;
+            body.appendChild(tr);
+        });
+        count.textContent = names.length;
+        card.style.display = 'block';
+        card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    }
+
     // --- Bulk upload forms ---
     document.getElementById('bulk-drivers-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -789,10 +826,12 @@ if (CAN_EDIT) {
             const data = await resp.json();
             if (!resp.ok) { showAlert(data.detail || 'Error uploading', 'danger', 'bulk-alert'); return; }
             let msg = `Drivers uploaded: ${data.assignments_created} created, ${data.assignments_skipped} already assigned.`;
-            if (data.import_result && data.import_result.not_found && data.import_result.not_found.length > 0) {
-                msg += ` <strong>${data.import_result.not_found.length} not found:</strong> ${data.import_result.not_found.join(', ')}`;
+            const notFound = data.import_result && data.import_result.not_found ? data.import_result.not_found : [];
+            if (notFound.length > 0) {
+                msg += ` <strong>${notFound.length} not recognized.</strong>`;
+                showUnrecognizedNames(notFound);
             }
-            showAlert(msg, 'success', 'bulk-alert');
+            showAlert(msg, notFound.length > 0 ? 'warning' : 'success', 'bulk-alert');
             setTimeout(() => window.location.reload(), 1500);
         } catch (err) { showAlert('Network error: ' + err.message, 'danger', 'bulk-alert'); }
     });
