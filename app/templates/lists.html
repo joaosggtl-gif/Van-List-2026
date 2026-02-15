@@ -286,6 +286,9 @@ async function setPreassignment(driverId, vanId) {
     }
 }
 
+// Map of van_id -> driver name for already preassigned vans
+const preassignedVans = {{ preassigned_vans | tojson }};
+
 // Van autocomplete for pre-assignments
 document.querySelectorAll('.pa-van-search').forEach(input => {
     const driverId = parseInt(input.dataset.driverId);
@@ -328,16 +331,25 @@ document.querySelectorAll('.pa-van-search').forEach(input => {
                 }
                 items.forEach((item, idx) => {
                     const div = document.createElement('div');
-                    div.className = 'autocomplete-item';
+                    const assignedTo = preassignedVans[item.id];
+                    const isAssigned = !!assignedTo;
+                    div.className = 'autocomplete-item' + (isAssigned ? ' text-muted' : '');
                     let label = item.code;
                     if (item.description) label += ` - ${item.description}`;
                     if (item.operational_status) {
                         const cls = item.operational_status === 'OPERATIONAL' ? 'bg-success' : 'bg-danger';
                         label += ` <span class="badge ${cls}" style="font-size:0.65rem">${item.operational_status}</span>`;
                     }
+                    if (isAssigned) {
+                        label += ` <em class="text-danger" style="font-size:0.75rem">(${assignedTo})</em>`;
+                    }
                     div.innerHTML = label;
-                    div.addEventListener('click', () => selectItem(item));
-                    div.addEventListener('mouseenter', () => { activeIndex = idx; updateActiveItem(); });
+                    if (!isAssigned) {
+                        div.addEventListener('click', () => selectItem(item));
+                        div.addEventListener('mouseenter', () => { activeIndex = idx; updateActiveItem(); });
+                    } else {
+                        div.style.cursor = 'not-allowed';
+                    }
                     dropdown.appendChild(div);
                 });
                 dropdown.style.display = 'block';

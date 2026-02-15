@@ -206,12 +206,16 @@ def lists_page(
 
     active_drivers = [d for d in drivers if d.active]
 
+    # Map van_id -> driver name for showing in autocomplete
+    preassigned_vans = {pa.van_id: pa.driver.name for pa in preassignments}
+
     return templates.TemplateResponse("lists.html", _ctx(
         request, user,
         vans=vans,
         drivers=drivers,
         preassign_map=preassign_map,
         active_drivers=active_drivers,
+        preassigned_vans=preassigned_vans,
     ))
 
 
