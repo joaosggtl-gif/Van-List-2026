@@ -62,6 +62,7 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
     imported = 0
     skipped = 0
     total = len(df)
+    uploaded_codes = set()
 
     for idx, row in df.iterrows():
         row_num = idx + 2  # Excel row (1-indexed + header)
@@ -81,6 +82,8 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
             errors.append(f"Row {row_num}: empty {'licensePlateNumber' if is_vehicles_data else 'code'}")
             continue
 
+        uploaded_codes.add(code)
+
         existing = db.query(Van).filter(Van.code == code).first()
         if existing:
             changed = False
@@ -90,6 +93,9 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
             if op_status is not None and existing.operational_status != op_status:
                 existing.operational_status = op_status
                 changed = True
+            if not existing.active:
+                existing.active = True
+                changed = True
             if changed:
                 existing.updated_at = datetime.utcnow()
             skipped += 1
@@ -98,6 +104,15 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
         van = Van(code=code, description=description, operational_status=op_status)
         db.add(van)
         imported += 1
+
+    # Deactivate vans not present in the uploaded file
+    removed = 0
+    if uploaded_codes:
+        stale_vans = db.query(Van).filter(Van.active == True, Van.code.notin_(uploaded_codes)).all()
+        for v in stale_vans:
+            v.active = False
+            v.updated_at = datetime.utcnow()
+            removed += 1
 
     db.flush()
 
@@ -120,6 +135,7 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
         records_total=total,
         records_imported=imported,
         records_skipped=skipped,
+        records_removed=removed,
         records_errors=len(errors),
         errors=errors,
     )
@@ -187,6 +203,7 @@ def import_drivers(db: Session, content: bytes, filename: str, uploaded_by: str 
     imported = 0
     skipped = 0
     total = len(df)
+    uploaded_ids = set()
 
     for idx, row in df.iterrows():
         row_num = idx + 2
@@ -204,10 +221,18 @@ def import_drivers(db: Session, content: bytes, filename: str, uploaded_by: str 
             errors.append(f"Row {row_num}: empty name")
             continue
 
+        uploaded_ids.add(employee_id)
+
         existing = db.query(Driver).filter(Driver.employee_id == employee_id).first()
         if existing:
+            changed = False
             if name and existing.name != name:
                 existing.name = name
+                changed = True
+            if not existing.active:
+                existing.active = True
+                changed = True
+            if changed:
                 existing.updated_at = datetime.utcnow()
             skipped += 1
             continue
@@ -215,6 +240,15 @@ def import_drivers(db: Session, content: bytes, filename: str, uploaded_by: str 
         driver = Driver(employee_id=employee_id, name=name)
         db.add(driver)
         imported += 1
+
+    # Deactivate drivers not present in the uploaded file
+    removed = 0
+    if uploaded_ids:
+        stale_drivers = db.query(Driver).filter(Driver.active == True, Driver.employee_id.notin_(uploaded_ids)).all()
+        for d in stale_drivers:
+            d.active = False
+            d.updated_at = datetime.utcnow()
+            removed += 1
 
     db.flush()
 
@@ -237,6 +271,7 @@ def import_drivers(db: Session, content: bytes, filename: str, uploaded_by: str 
         records_total=total,
         records_imported=imported,
         records_skipped=skipped,
+        records_removed=removed,
         records_errors=len(errors),
         errors=errors,
     )

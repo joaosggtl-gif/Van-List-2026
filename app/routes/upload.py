@@ -31,7 +31,7 @@ async def upload_vans(
 
     log_action(
         db, user, "upload", "van", None,
-        f"Uploaded '{file.filename}': {result.records_imported} imported, {result.records_skipped} skipped, {result.records_errors} errors",
+        f"Uploaded '{file.filename}': {result.records_imported} imported, {result.records_skipped} updated, {result.records_removed} removed, {result.records_errors} errors",
     )
     db.commit()
     return result.model_dump()
@@ -58,7 +58,7 @@ async def upload_drivers(
 
     log_action(
         db, user, "upload", "driver", None,
-        f"Uploaded '{file.filename}': {result.records_imported} imported, {result.records_skipped} skipped, {result.records_errors} errors",
+        f"Uploaded '{file.filename}': {result.records_imported} imported, {result.records_skipped} updated, {result.records_removed} removed, {result.records_errors} errors",
     )
     db.commit()
     return result.model_dump()

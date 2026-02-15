@@ -105,6 +105,7 @@ class ImportResult(BaseModel):
     records_total: int
     records_imported: int
     records_skipped: int
+    records_removed: int = 0
     records_errors: int
     errors: list[str]
 
