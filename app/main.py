@@ -5,7 +5,7 @@ from app.auth import hash_password
 from app.config import DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD
 from app.database import Base, engine, SessionLocal
 from app.models import User
-from app.routes import pages, assignments, vans, drivers, upload, export, auth
+from app.routes import pages, assignments, vans, drivers, upload, export, auth, preassignments
 
 # Create tables (safe if already exist; Alembic handles migrations in production)
 Base.metadata.create_all(bind=engine)
@@ -21,6 +21,7 @@ app.include_router(vans.router)
 app.include_router(drivers.router)
 app.include_router(upload.router)
 app.include_router(export.router)
+app.include_router(preassignments.router)
 
 
 @app.on_event("startup")

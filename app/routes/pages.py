@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user_optional, ROLE_HIERARCHY
 from app.database import get_db
-from app.models import DailyAssignment, Van, Driver, User, AuditLog
+from app.models import DailyAssignment, Van, Driver, User, AuditLog, DriverVanPreassignment
 from app.services.week_service import (
     get_current_week_number,
     get_week_dates,
@@ -145,8 +145,17 @@ def daily_page(
     paired, driver_only, van_only = _partition_assignments(assignments)
 
     week_num = get_week_number(target_date)
-    total_vans = db.query(Van).filter(Van.active == True).count()
+    all_vans = db.query(Van).filter(Van.active == True).order_by(Van.code).all()
     total_drivers = db.query(Driver).filter(Driver.active == True).count()
+
+    # Build set of van IDs already assigned on this date (paired or van-only)
+    assigned_van_ids = set()
+    for a in paired:
+        if a.van_id:
+            assigned_van_ids.add(a.van_id)
+    for a in van_only:
+        if a.van_id:
+            assigned_van_ids.add(a.van_id)
 
     return templates.TemplateResponse("daily.html", _ctx(
         request, user,
@@ -156,7 +165,9 @@ def daily_page(
         paired=paired,
         driver_only=driver_only,
         van_only=van_only,
-        total_vans=total_vans,
+        all_vans=all_vans,
+        assigned_van_ids=assigned_van_ids,
+        total_vans=len(all_vans),
         total_drivers=total_drivers,
     ))
 
@@ -182,10 +193,25 @@ def lists_page(
 
     vans = db.query(Van).order_by(Van.active.desc(), Van.code).all()
     drivers = db.query(Driver).order_by(Driver.active.desc(), Driver.name).all()
+
+    preassignments = (
+        db.query(DriverVanPreassignment)
+        .options(
+            joinedload(DriverVanPreassignment.driver),
+            joinedload(DriverVanPreassignment.van),
+        )
+        .all()
+    )
+    preassign_map = {pa.driver_id: pa for pa in preassignments}
+
+    active_drivers = [d for d in drivers if d.active]
+
     return templates.TemplateResponse("lists.html", _ctx(
         request, user,
         vans=vans,
         drivers=drivers,
+        preassign_map=preassign_map,
+        active_drivers=active_drivers,
     ))
 
 

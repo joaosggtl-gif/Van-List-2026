@@ -35,7 +35,7 @@ body {
 .autocomplete-dropdown {
     display: none;
     position: absolute;
-    z-index: 1050;
+    z-index: 9999;
     background: white;
     border: 1px solid #dee2e6;
     border-top: none;
@@ -46,13 +46,18 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+.table-responsive {
+    overflow: visible !important;
+}
+
 .autocomplete-item {
     padding: 6px 10px;
     cursor: pointer;
     font-size: 0.85rem;
 }
 
-.autocomplete-item:hover {
+.autocomplete-item:hover,
+.autocomplete-item.active {
     background-color: #e9ecef;
 }
 

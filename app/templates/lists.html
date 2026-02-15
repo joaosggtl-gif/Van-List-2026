@@ -5,7 +5,7 @@
 <h4 class="mb-3"><i class="bi bi-list-ul"></i> Vans & Drivers</h4>
 
 <div class="row">
-    <div class="col-md-6 mb-3">
+    <div class="col-md-4 mb-3">
         <div class="card">
             <div class="card-header bg-info text-white py-2 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-truck"></i> Vans ({{ vans|length }})</span>
@@ -27,21 +27,37 @@
                             <td><strong>{{ v.code }}</strong></td>
                             <td>{{ v.description or '-' }}</td>
                             <td>
-                                {% if v.operational_status == 'OPERATIONAL' %}
-                                    <span class="badge bg-success">OPERATIONAL</span>
-                                {% elif v.operational_status == 'GROUNDED' %}
-                                    <span class="badge bg-danger">GROUNDED</span>
-                                {% elif v.operational_status %}
-                                    <span class="badge bg-secondary">{{ v.operational_status }}</span>
+                                {% if can_edit %}
+                                <select class="form-select form-select-sm py-0 op-status-select"
+                                        data-van-id="{{ v.id }}" style="min-width:130px; font-size:0.78rem;">
+                                    <option value="OPERATIONAL" {% if v.operational_status == 'OPERATIONAL' %}selected{% endif %}>OPERATIONAL</option>
+                                    <option value="GROUNDED" {% if v.operational_status == 'GROUNDED' %}selected{% endif %}>GROUNDED</option>
+                                </select>
                                 {% else %}
-                                    -
+                                    {% if v.operational_status == 'OPERATIONAL' %}
+                                        <span class="badge bg-success">OPERATIONAL</span>
+                                    {% elif v.operational_status == 'GROUNDED' %}
+                                        <span class="badge bg-danger">GROUNDED</span>
+                                    {% elif v.operational_status %}
+                                        <span class="badge bg-secondary">{{ v.operational_status }}</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
                                 {% endif %}
                             </td>
                             <td>
-                                {% if v.active %}
-                                    <span class="badge bg-success">Active</span>
+                                {% if can_edit %}
+                                <select class="form-select form-select-sm py-0 active-status-select"
+                                        data-van-id="{{ v.id }}" style="min-width:100px; font-size:0.78rem;">
+                                    <option value="active" {% if v.active %}selected{% endif %}>Active</option>
+                                    <option value="inactive" {% if not v.active %}selected{% endif %}>Inactive</option>
+                                </select>
                                 {% else %}
-                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% if v.active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
                                 {% endif %}
                             </td>
                             {% if is_admin %}
@@ -63,7 +79,7 @@
         </div>
     </div>
 
-    <div class="col-md-6 mb-3">
+    <div class="col-md-4 mb-3">
         <div class="card">
             <div class="card-header bg-warning py-2 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-person-badge"></i> Drivers ({{ drivers|length }})</span>
@@ -108,6 +124,61 @@
             </div>
         </div>
     </div>
+
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-link-45deg"></i> Pre-assigned Vans ({{ active_drivers|length }})</span>
+            </div>
+            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>Driver</th>
+                            <th>Van</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in active_drivers %}
+                        <tr>
+                            <td>{{ d.name }}</td>
+                            <td style="position:relative;">
+                                {% set pa = preassign_map.get(d.id) %}
+                                {% if pa %}
+                                <div class="d-flex align-items-center gap-1" id="pa-display-{{ d.id }}">
+                                    <strong>{{ pa.van.code }}</strong>
+                                    {% if can_edit %}
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                            title="Remove pre-assignment"
+                                            onclick="removePreassignment({{ pa.id }}, {{ d.id }})">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                {% else %}
+                                    {% if can_edit %}
+                                    <input type="text" class="form-control form-control-sm pa-van-search"
+                                           id="pa-van-search-{{ d.id }}"
+                                           data-driver-id="{{ d.id }}"
+                                           placeholder="Assign van..."
+                                           autocomplete="off"
+                                           style="min-width:120px;">
+                                    <div id="pa-van-dropdown-{{ d.id }}" class="autocomplete-dropdown"></div>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not active_drivers %}
+                        <tr><td colspan="2" class="text-center text-muted py-3">No active drivers.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -125,5 +196,194 @@ async function toggleDriver(id) {
     if (r.status === 403) { alert('Admin role required.'); return; }
     window.location.reload();
 }
+
+// Op. Status change
+document.querySelectorAll('.op-status-select').forEach(select => {
+    const original = select.value;
+    select.addEventListener('change', async () => {
+        const vanId = select.dataset.vanId;
+        try {
+            const r = await fetch(`/api/vans/${vanId}/operational-status`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({operational_status: select.value}),
+            });
+            if (r.status === 401) { window.location.href = '/login'; return; }
+            if (r.status === 403) { alert('Permission denied.'); select.value = original; return; }
+            if (r.ok) {
+                select.classList.add('is-valid');
+                setTimeout(() => select.classList.remove('is-valid'), 1500);
+            } else {
+                const data = await r.json();
+                alert(data.detail || 'Error updating status');
+                select.value = original;
+            }
+        } catch (err) {
+            alert('Network error: ' + err.message);
+            select.value = original;
+        }
+    });
+});
+
+// Active status change
+document.querySelectorAll('.active-status-select').forEach(select => {
+    const original = select.value;
+    select.addEventListener('change', async () => {
+        const vanId = select.dataset.vanId;
+        const currentlyActive = original === 'active';
+        const newActive = select.value === 'active';
+        if (currentlyActive === newActive) return;
+        try {
+            const r = await fetch(`/api/vans/${vanId}/toggle`, {method: 'POST'});
+            if (r.status === 401) { window.location.href = '/login'; return; }
+            if (r.status === 403) { alert('Admin role required.'); select.value = original; return; }
+            if (r.ok) {
+                window.location.reload();
+            } else {
+                select.value = original;
+            }
+        } catch (err) {
+            alert('Network error: ' + err.message);
+            select.value = original;
+        }
+    });
+});
+
+// --- Pre-assignment logic ---
+async function removePreassignment(paId, driverId) {
+    try {
+        const r = await fetch(`/api/preassignments/${paId}`, {method: 'DELETE'});
+        if (r.status === 401) { window.location.href = '/login'; return; }
+        if (r.status === 403) { alert('Permission denied.'); return; }
+        if (r.ok) {
+            window.location.reload();
+        } else {
+            const data = await r.json();
+            alert(data.detail || 'Error removing pre-assignment');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+async function setPreassignment(driverId, vanId) {
+    try {
+        const r = await fetch('/api/preassignments', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({driver_id: driverId, van_id: vanId}),
+        });
+        if (r.status === 401) { window.location.href = '/login'; return; }
+        if (r.status === 403) { alert('Permission denied.'); return; }
+        if (r.ok) {
+            window.location.reload();
+        } else {
+            const data = await r.json();
+            alert(data.detail || 'Error setting pre-assignment');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+// Van autocomplete for pre-assignments
+document.querySelectorAll('.pa-van-search').forEach(input => {
+    const driverId = parseInt(input.dataset.driverId);
+    const dropdown = document.getElementById(`pa-van-dropdown-${driverId}`);
+    let debounceTimer;
+    let activeIndex = -1;
+    let currentItems = [];
+
+    function selectItem(item) {
+        input.value = item.code;
+        input.classList.add('is-valid');
+        dropdown.style.display = 'none';
+        activeIndex = -1;
+        setPreassignment(driverId, item.id);
+    }
+
+    function updateActiveItem() {
+        const items = dropdown.querySelectorAll('.autocomplete-item:not(.text-muted)');
+        items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+        if (activeIndex >= 0 && items[activeIndex]) {
+            items[activeIndex].scrollIntoView({block: 'nearest'});
+        }
+    }
+
+    function fetchResults(query) {
+        fetch(`/api/vans/search?q=${encodeURIComponent(query)}`)
+            .then(r => {
+                if (r.status === 401) { window.location.href = '/login'; return []; }
+                return r.json();
+            })
+            .then(items => {
+                if (!items) return;
+                currentItems = items;
+                activeIndex = -1;
+                dropdown.innerHTML = '';
+                if (items.length === 0) {
+                    dropdown.innerHTML = '<div class="autocomplete-item text-muted">No results</div>';
+                    dropdown.style.display = 'block';
+                    return;
+                }
+                items.forEach((item, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'autocomplete-item';
+                    let label = item.code;
+                    if (item.description) label += ` - ${item.description}`;
+                    if (item.operational_status) {
+                        const cls = item.operational_status === 'OPERATIONAL' ? 'bg-success' : 'bg-danger';
+                        label += ` <span class="badge ${cls}" style="font-size:0.65rem">${item.operational_status}</span>`;
+                    }
+                    div.innerHTML = label;
+                    div.addEventListener('click', () => selectItem(item));
+                    div.addEventListener('mouseenter', () => { activeIndex = idx; updateActiveItem(); });
+                    dropdown.appendChild(div);
+                });
+                dropdown.style.display = 'block';
+            });
+    }
+
+    input.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        input.classList.remove('is-valid');
+        activeIndex = -1;
+        debounceTimer = setTimeout(() => fetchResults(input.value.trim()), 200);
+    });
+
+    input.addEventListener('focus', () => {
+        fetchResults(input.value.trim());
+    });
+
+    input.addEventListener('keydown', (e) => {
+        const items = dropdown.querySelectorAll('.autocomplete-item:not(.text-muted)');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (dropdown.style.display === 'none') { fetchResults(input.value.trim()); return; }
+            activeIndex = Math.min(activeIndex + 1, items.length - 1);
+            updateActiveItem();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIndex = Math.max(activeIndex - 1, 0);
+            updateActiveItem();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (dropdown.style.display !== 'none' && currentItems.length > 0) {
+                const idx = activeIndex >= 0 ? activeIndex : 0;
+                if (currentItems[idx]) selectItem(currentItems[idx]);
+            }
+        } else if (e.key === 'Escape') {
+            dropdown.style.display = 'none';
+            activeIndex = -1;
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+            activeIndex = -1;
+        }
+    });
+});
 </script>
 {% endblock %}

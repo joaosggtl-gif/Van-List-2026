@@ -105,6 +105,25 @@ class DailyAssignment(Base):
         return f"<Assignment {self.assignment_date}: {self.driver_id} -> {self.van_id}>"
 
 
+class DriverVanPreassignment(Base):
+    __tablename__ = "driver_van_preassignments"
+    __table_args__ = (
+        UniqueConstraint("driver_id", name="uq_preassign_driver"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id = Column(Integer, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False)
+    van_id = Column(Integer, ForeignKey("vans.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    driver = relationship("Driver", backref="preassignment")
+    van = relationship("Van", backref="preassignments")
+
+    def __repr__(self):
+        return f"<DriverVanPreassignment driver={self.driver_id} van={self.van_id}>"
+
+
 class ImportLog(Base):
     __tablename__ = "import_logs"
 

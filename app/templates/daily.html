@@ -11,7 +11,6 @@
         <small class="text-muted">
             {{ paired|length }} paired |
             {{ driver_only|length }} driver-only |
-            {{ van_only|length }} van-only |
             {{ assignments|length }} total |
             {{ total_vans }} active vans |
             {{ total_drivers }} active drivers
@@ -128,6 +127,155 @@
     </div>
 </div>
 
+{% endif %}
+
+<!-- Paired Assignments -->
+<div class="card mb-3">
+    <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-link-45deg"></i> Paired Assignments</span>
+        <span class="badge bg-light text-success">{{ paired|length }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Driver ID</th>
+                    <th>Driver Name</th>
+                    <th>Van (Plate)</th>
+                    <th>Op. Status</th>
+                    <th>Notes</th>
+                    <th>Created</th>
+                    {% if can_edit %}<th>Actions</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in paired %}
+                <tr id="row-{{ a.id }}">
+                    <td>{{ loop.index }}</td>
+                    <td>{{ a.driver.employee_id }}</td>
+                    <td>{{ a.driver.name }}</td>
+                    <td><strong>{{ a.van.code }}</strong></td>
+                    <td>
+                        {% if a.van.operational_status == 'OPERATIONAL' %}
+                            <span class="badge bg-success">OPERATIONAL</span>
+                        {% elif a.van.operational_status == 'GROUNDED' %}
+                            <span class="badge bg-danger">GROUNDED</span>
+                        {% elif a.van.operational_status %}
+                            <span class="badge bg-secondary">{{ a.van.operational_status }}</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if can_edit %}
+                        <input type="text" class="form-control form-control-sm notes-inline"
+                               value="{{ a.notes or '' }}"
+                               data-assignment-id="{{ a.id }}"
+                               data-driver-id="{{ a.driver_id }}"
+                               data-van-id="{{ a.van_id }}"
+                               placeholder="Add notes..."
+                               style="min-width:120px;">
+                        {% else %}
+                        {{ a.notes or '' }}
+                        {% endif %}
+                    </td>
+                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
+                    {% if can_edit %}
+                    <td>
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Unpair"
+                                onclick="unpairAssignment({{ a.id }})">
+                            <i class="bi bi-scissors"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                onclick="deleteAssignment({{ a.id }})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                {% if not paired %}
+                <tr>
+                    <td colspan="{% if can_edit %}8{% else %}7{% endif %}" class="text-center text-muted py-2">
+                        No paired assignments yet.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Drivers Awaiting Van -->
+<div class="card mb-3">
+    <div class="card-header bg-warning py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person"></i> Drivers Awaiting Van</span>
+        <div class="d-flex align-items-center gap-2">
+            {% if can_edit and driver_only %}
+            <button class="btn btn-danger btn-sm py-0 px-2" onclick="removeSelectedDrivers()" id="btn-remove-selected" style="display:none;">
+                <i class="bi bi-trash"></i> Remove Selected
+            </button>
+            {% endif %}
+            <span class="badge bg-dark">{{ driver_only|length }}</span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-dark">
+                <tr>
+                    {% if can_edit %}<th style="width:30px;"><input type="checkbox" id="select-all-drivers" onchange="toggleAllDriverCheckboxes(this)"></th>{% endif %}
+                    <th>#</th>
+                    <th>Driver ID</th>
+                    <th>Driver Name</th>
+                    <th>Notes</th>
+                    <th>Created</th>
+                    {% if can_edit %}<th>Pair with Van</th><th>Actions</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in driver_only %}
+                <tr id="row-{{ a.id }}">
+                    {% if can_edit %}<td><input type="checkbox" class="driver-checkbox" value="{{ a.id }}" onchange="updateRemoveSelectedBtn()"></td>{% endif %}
+                    <td>{{ loop.index }}</td>
+                    <td>{{ a.driver.employee_id }}</td>
+                    <td>{{ a.driver.name }}</td>
+                    <td>{{ a.notes or '' }}</td>
+                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
+                    {% if can_edit %}
+                    <td style="position:relative;">
+                        <input type="text" class="form-control form-control-sm pair-van-search"
+                               id="pair-van-search-{{ a.id }}"
+                               data-assignment-id="{{ a.id }}"
+                               data-driver-id="{{ a.driver_id }}"
+                               placeholder="Type van code..."
+                               autocomplete="off"
+                               style="min-width:180px;">
+                        <input type="hidden" id="pair-van-id-{{ a.id }}">
+                        <div id="pair-van-dropdown-{{ a.id }}" class="autocomplete-dropdown"></div>
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                onclick="deleteAssignment({{ a.id }})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                {% if not driver_only %}
+                <tr>
+                    <td colspan="{% if can_edit %}8{% else %}5{% endif %}" class="text-center text-muted py-2">
+                        No drivers awaiting van.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if can_edit %}
 <!-- Bulk Upload Section -->
 <div class="card mb-3">
     <div class="card-header bg-secondary text-white py-2">
@@ -158,206 +306,6 @@
     </div>
 </div>
 {% endif %}
-
-<!-- Paired Assignments -->
-<div class="card mb-3">
-    <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-link-45deg"></i> Paired Assignments</span>
-        <span class="badge bg-light text-success">{{ paired|length }}</span>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Driver ID</th>
-                    <th>Driver Name</th>
-                    <th>Van (Plate)</th>
-                    <th>Van Description</th>
-                    <th>Op. Status</th>
-                    <th>Notes</th>
-                    <th>Created</th>
-                    {% if can_edit %}<th>Actions</th>{% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in paired %}
-                <tr id="row-{{ a.id }}">
-                    <td>{{ loop.index }}</td>
-                    <td>{{ a.driver.employee_id }}</td>
-                    <td>{{ a.driver.name }}</td>
-                    <td><strong>{{ a.van.code }}</strong></td>
-                    <td>{{ a.van.description or '' }}</td>
-                    <td>
-                        {% if a.van.operational_status == 'OPERATIONAL' %}
-                            <span class="badge bg-success">OPERATIONAL</span>
-                        {% elif a.van.operational_status == 'GROUNDED' %}
-                            <span class="badge bg-danger">GROUNDED</span>
-                        {% elif a.van.operational_status %}
-                            <span class="badge bg-secondary">{{ a.van.operational_status }}</span>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>{{ a.notes or '' }}</td>
-                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
-                    {% if can_edit %}
-                    <td>
-                        <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Unpair"
-                                onclick="unpairAssignment({{ a.id }})">
-                            <i class="bi bi-scissors"></i>
-                        </button>
-                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
-                                onclick="deleteAssignment({{ a.id }})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-                {% if not paired %}
-                <tr>
-                    <td colspan="{% if can_edit %}9{% else %}8{% endif %}" class="text-center text-muted py-2">
-                        No paired assignments yet.
-                    </td>
-                </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Drivers Awaiting Van -->
-<div class="card mb-3">
-    <div class="card-header bg-warning py-2 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-person"></i> Drivers Awaiting Van</span>
-        <span class="badge bg-dark">{{ driver_only|length }}</span>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Driver ID</th>
-                    <th>Driver Name</th>
-                    <th>Notes</th>
-                    <th>Created</th>
-                    {% if can_edit %}<th>Pair with Van</th><th>Actions</th>{% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in driver_only %}
-                <tr id="row-{{ a.id }}">
-                    <td>{{ loop.index }}</td>
-                    <td>{{ a.driver.employee_id }}</td>
-                    <td>{{ a.driver.name }}</td>
-                    <td>{{ a.notes or '' }}</td>
-                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
-                    {% if can_edit %}
-                    <td>
-                        {% if van_only %}
-                        <select class="form-select form-select-sm" onchange="pairDriverWithVan({{ a.id }}, this.value)" style="min-width:140px;">
-                            <option value="">-- Select Van --</option>
-                            {% for v in van_only %}
-                            <option value="{{ v.id }}">{{ v.van.code }}{% if v.van.description %} - {{ v.van.description }}{% endif %}</option>
-                            {% endfor %}
-                        </select>
-                        {% else %}
-                        <small class="text-muted">No vans available</small>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
-                                onclick="deleteAssignment({{ a.id }})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-                {% if not driver_only %}
-                <tr>
-                    <td colspan="{% if can_edit %}7{% else %}5{% endif %}" class="text-center text-muted py-2">
-                        No drivers awaiting van.
-                    </td>
-                </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Vans Awaiting Driver -->
-<div class="card mb-3">
-    <div class="card-header bg-info text-white py-2 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-truck"></i> Vans Awaiting Driver</span>
-        <span class="badge bg-light text-info">{{ van_only|length }}</span>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Van (Plate)</th>
-                    <th>Van Description</th>
-                    <th>Op. Status</th>
-                    <th>Notes</th>
-                    <th>Created</th>
-                    {% if can_edit %}<th>Pair with Driver</th><th>Actions</th>{% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in van_only %}
-                <tr id="row-{{ a.id }}">
-                    <td>{{ loop.index }}</td>
-                    <td><strong>{{ a.van.code }}</strong></td>
-                    <td>{{ a.van.description or '' }}</td>
-                    <td>
-                        {% if a.van.operational_status == 'OPERATIONAL' %}
-                            <span class="badge bg-success">OPERATIONAL</span>
-                        {% elif a.van.operational_status == 'GROUNDED' %}
-                            <span class="badge bg-danger">GROUNDED</span>
-                        {% elif a.van.operational_status %}
-                            <span class="badge bg-secondary">{{ a.van.operational_status }}</span>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>{{ a.notes or '' }}</td>
-                    <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
-                    {% if can_edit %}
-                    <td>
-                        {% if driver_only %}
-                        <select class="form-select form-select-sm" onchange="pairVanWithDriver({{ a.id }}, this.value)" style="min-width:140px;">
-                            <option value="">-- Select Driver --</option>
-                            {% for d in driver_only %}
-                            <option value="{{ d.id }}">{{ d.driver.employee_id }} - {{ d.driver.name }}</option>
-                            {% endfor %}
-                        </select>
-                        {% else %}
-                        <small class="text-muted">No drivers available</small>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
-                                onclick="deleteAssignment({{ a.id }})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-                {% if not van_only %}
-                <tr>
-                    <td colspan="{% if can_edit %}8{% else %}6{% endif %}" class="text-center text-muted py-2">
-                        No vans awaiting driver.
-                    </td>
-                </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
-</div>
 
 {% endblock %}
 
@@ -392,6 +340,49 @@ async function deleteAssignment(id) {
     }
 }
 
+async function saveNotes(input) {
+    const id = input.dataset.assignmentId;
+    const driverId = input.dataset.driverId;
+    const vanId = input.dataset.vanId;
+    const notes = input.value.trim() || null;
+    try {
+        const resp = await fetch(`/api/assignments/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                assignment_date: CURRENT_DATE,
+                driver_id: driverId ? parseInt(driverId) : null,
+                van_id: vanId ? parseInt(vanId) : null,
+                notes: notes,
+            }),
+        });
+        if (resp.status === 401) { window.location.href = '/login'; return; }
+        if (resp.status === 403) { alert('Permission denied.'); return; }
+        if (resp.ok) {
+            input.classList.remove('is-invalid');
+            input.classList.add('is-valid');
+            setTimeout(() => input.classList.remove('is-valid'), 1500);
+        } else {
+            const data = await resp.json();
+            input.classList.add('is-invalid');
+            alert(data.detail || 'Error saving notes');
+        }
+    } catch (err) {
+        input.classList.add('is-invalid');
+        alert('Network error: ' + err.message);
+    }
+}
+
+document.querySelectorAll('.notes-inline').forEach(input => {
+    let original = input.value;
+    input.addEventListener('blur', () => {
+        if (input.value !== original) { saveNotes(input); original = input.value; }
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    });
+});
+
 async function unpairAssignment(id) {
     if (!confirm('Unpair this assignment into separate driver and van entries?')) return;
     try {
@@ -409,39 +400,52 @@ async function unpairAssignment(id) {
     }
 }
 
-async function pairDriverWithVan(driverAssignmentId, vanAssignmentId) {
-    if (!vanAssignmentId) return;
+function toggleAllDriverCheckboxes(source) {
+    document.querySelectorAll('.driver-checkbox').forEach(cb => { cb.checked = source.checked; });
+    updateRemoveSelectedBtn();
+}
+
+function updateRemoveSelectedBtn() {
+    const btn = document.getElementById('btn-remove-selected');
+    if (!btn) return;
+    const checked = document.querySelectorAll('.driver-checkbox:checked').length;
+    btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    btn.innerHTML = `<i class="bi bi-trash"></i> Remove Selected (${checked})`;
+}
+
+async function removeSelectedDrivers() {
+    const ids = Array.from(document.querySelectorAll('.driver-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Remove ${ids.length} selected driver assignment(s)?`)) return;
     try {
-        const resp = await fetch('/api/assignments/pair', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                driver_assignment_id: driverAssignmentId,
-                van_assignment_id: parseInt(vanAssignmentId),
-            }),
-        });
-        if (resp.status === 401) { window.location.href = '/login'; return; }
-        if (resp.status === 403) { alert('Permission denied.'); return; }
-        if (resp.ok) {
-            window.location.reload();
-        } else {
-            const data = await resp.json();
-            alert(data.detail || 'Error pairing');
+        const results = await Promise.all(ids.map(id =>
+            fetch(`/api/assignments/${id}`, {method: 'DELETE'})
+        ));
+        const unauthorized = results.find(r => r.status === 401);
+        if (unauthorized) { window.location.href = '/login'; return; }
+        const forbidden = results.find(r => r.status === 403);
+        if (forbidden) { alert('Permission denied.'); return; }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+            alert(`${ids.length - failed.length} removed, ${failed.length} failed.`);
         }
+        window.location.reload();
     } catch (err) {
         alert('Network error: ' + err.message);
     }
 }
 
-async function pairVanWithDriver(vanAssignmentId, driverAssignmentId) {
-    if (!driverAssignmentId) return;
+async function assignVanToDriver(driverAssignmentId, driverId, vanId) {
+    if (!vanId) return;
     try {
-        const resp = await fetch('/api/assignments/pair', {
-            method: 'POST',
+        // Update the driver-only assignment to include the selected van
+        const resp = await fetch(`/api/assignments/${driverAssignmentId}`, {
+            method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                driver_assignment_id: parseInt(driverAssignmentId),
-                van_assignment_id: vanAssignmentId,
+                assignment_date: CURRENT_DATE,
+                driver_id: driverId,
+                van_id: parseInt(vanId),
             }),
         });
         if (resp.status === 401) { window.location.href = '/login'; return; }
@@ -450,7 +454,7 @@ async function pairVanWithDriver(vanAssignmentId, driverAssignmentId) {
             window.location.reload();
         } else {
             const data = await resp.json();
-            alert(data.detail || 'Error pairing');
+            alert(data.detail || 'Error assigning van');
         }
     } catch (err) {
         alert('Network error: ' + err.message);
@@ -464,12 +468,59 @@ if (CAN_EDIT) {
         const hidden = document.getElementById(hiddenId);
         const dropdown = document.getElementById(dropdownId);
         let debounceTimer;
+        let activeIndex = -1;
+        let currentItems = [];
+
+        function selectItem(item) {
+            hidden.value = item.id;
+            input.value = item.code || `${item.employee_id} - ${item.name}`;
+            input.classList.add('is-valid');
+            dropdown.style.display = 'none';
+            activeIndex = -1;
+        }
+
+        function updateActiveItem() {
+            const items = dropdown.querySelectorAll('.autocomplete-item:not(.text-muted)');
+            items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+            if (activeIndex >= 0 && items[activeIndex]) {
+                items[activeIndex].scrollIntoView({block: 'nearest'});
+            }
+        }
 
         input.addEventListener('input', () => {
             clearTimeout(debounceTimer);
             hidden.value = '';
             input.classList.remove('is-valid');
+            activeIndex = -1;
             debounceTimer = setTimeout(() => fetchResults(input.value), 200);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            const items = dropdown.querySelectorAll('.autocomplete-item:not(.text-muted)');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (dropdown.style.display === 'none') { fetchResults(input.value); return; }
+                activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                updateActiveItem();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                activeIndex = Math.max(activeIndex - 1, 0);
+                updateActiveItem();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (hidden.value) {
+                    // Already selected, submit the form
+                    input.closest('form').dispatchEvent(new Event('submit', {cancelable: true}));
+                    return;
+                }
+                if (dropdown.style.display !== 'none' && currentItems.length > 0) {
+                    const idx = activeIndex >= 0 ? activeIndex : 0;
+                    if (currentItems[idx]) selectItem(currentItems[idx]);
+                }
+            } else if (e.key === 'Escape') {
+                dropdown.style.display = 'none';
+                activeIndex = -1;
+            }
         });
 
         input.addEventListener('focus', () => {
@@ -479,6 +530,7 @@ if (CAN_EDIT) {
         document.addEventListener('click', (e) => {
             if (!input.contains(e.target) && !dropdown.contains(e.target)) {
                 dropdown.style.display = 'none';
+                activeIndex = -1;
             }
         });
 
@@ -491,13 +543,15 @@ if (CAN_EDIT) {
                 })
                 .then(items => {
                     if (!items) return;
+                    currentItems = items;
+                    activeIndex = -1;
                     dropdown.innerHTML = '';
                     if (items.length === 0) {
                         dropdown.innerHTML = '<div class="autocomplete-item text-muted">No results</div>';
                         dropdown.style.display = 'block';
                         return;
                     }
-                    items.forEach(item => {
+                    items.forEach((item, idx) => {
                         const div = document.createElement('div');
                         div.className = 'autocomplete-item';
                         if (item.code) {
@@ -512,11 +566,10 @@ if (CAN_EDIT) {
                         } else {
                             div.textContent = `${item.employee_id} - ${item.name}`;
                         }
-                        div.addEventListener('click', () => {
-                            hidden.value = item.id;
-                            input.value = item.code || `${item.employee_id} - ${item.name}`;
-                            input.classList.add('is-valid');
-                            dropdown.style.display = 'none';
+                        div.addEventListener('click', () => selectItem(item));
+                        div.addEventListener('mouseenter', () => {
+                            activeIndex = idx;
+                            updateActiveItem();
                         });
                         dropdown.appendChild(div);
                     });
@@ -534,6 +587,124 @@ if (CAN_EDIT) {
     // Full assignment form autocomplete
     setupAutocomplete('full-driver-search', 'full-driver-id', 'full-driver-dropdown', '/api/assignments/available-drivers');
     setupAutocomplete('full-van-search', 'full-van-id', 'full-van-dropdown', '/api/assignments/available-vans');
+
+    // --- Pair van autocomplete (Drivers Awaiting Van section) ---
+    const assignedVanIds = new Set({{ assigned_van_ids | list | tojson }});
+
+    function setupPairVanAutocomplete(input) {
+        const assignmentId = parseInt(input.dataset.assignmentId);
+        const driverId = parseInt(input.dataset.driverId);
+        const hidden = document.getElementById(`pair-van-id-${assignmentId}`);
+        const dropdown = document.getElementById(`pair-van-dropdown-${assignmentId}`);
+        let debounceTimer;
+        let activeIndex = -1;
+        let currentItems = [];
+
+        function selectItem(item) {
+            hidden.value = item.id;
+            input.value = item.code + (item.description ? ` - ${item.description}` : '');
+            input.classList.add('is-valid');
+            dropdown.style.display = 'none';
+            activeIndex = -1;
+            assignVanToDriver(assignmentId, driverId, item.id);
+        }
+
+        function updateActiveItem() {
+            const items = dropdown.querySelectorAll('.autocomplete-item:not(.text-muted)');
+            items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+            if (activeIndex >= 0 && items[activeIndex]) {
+                items[activeIndex].scrollIntoView({block: 'nearest'});
+            }
+        }
+
+        function fetchResults(query) {
+            fetch(`/api/vans/search?q=${encodeURIComponent(query)}`)
+                .then(r => {
+                    if (r.status === 401) { window.location.href = '/login'; return []; }
+                    return r.json();
+                })
+                .then(items => {
+                    if (!items) return;
+                    currentItems = items;
+                    activeIndex = -1;
+                    dropdown.innerHTML = '';
+                    if (items.length === 0) {
+                        dropdown.innerHTML = '<div class="autocomplete-item text-muted">No results</div>';
+                        dropdown.style.display = 'block';
+                        return;
+                    }
+                    items.forEach((item, idx) => {
+                        const div = document.createElement('div');
+                        const isAssigned = assignedVanIds.has(item.id);
+                        div.className = 'autocomplete-item' + (isAssigned ? ' text-muted' : '');
+                        let label = item.code;
+                        if (item.description) label += ` - ${item.description}`;
+                        if (item.operational_status) {
+                            const cls = item.operational_status === 'OPERATIONAL' ? 'bg-success' : 'bg-danger';
+                            label += ` <span class="badge ${cls}" style="font-size:0.65rem">${item.operational_status}</span>`;
+                        }
+                        if (isAssigned) label += ' <em>(assigned)</em>';
+                        div.innerHTML = label;
+                        if (!isAssigned) {
+                            div.addEventListener('click', () => selectItem(item));
+                            div.addEventListener('mouseenter', () => { activeIndex = idx; updateActiveItem(); });
+                        } else {
+                            div.style.cursor = 'not-allowed';
+                        }
+                        dropdown.appendChild(div);
+                    });
+                    dropdown.style.display = 'block';
+                });
+        }
+
+        input.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            hidden.value = '';
+            input.classList.remove('is-valid');
+            activeIndex = -1;
+            debounceTimer = setTimeout(() => fetchResults(input.value.trim()), 200);
+        });
+
+        input.addEventListener('focus', () => {
+            if (!hidden.value) fetchResults(input.value.trim());
+        });
+
+        input.addEventListener('keydown', (e) => {
+            const items = dropdown.querySelectorAll('.autocomplete-item:not(.text-muted)');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (dropdown.style.display === 'none') { fetchResults(input.value.trim()); return; }
+                activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                updateActiveItem();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                activeIndex = Math.max(activeIndex - 1, 0);
+                updateActiveItem();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (dropdown.style.display !== 'none') {
+                    const selectableItems = currentItems.filter(i => !assignedVanIds.has(i.id));
+                    if (selectableItems.length > 0) {
+                        const idx = activeIndex >= 0 ? activeIndex : 0;
+                        const target = currentItems[idx];
+                        if (target && !assignedVanIds.has(target.id)) selectItem(target);
+                    }
+                }
+            } else if (e.key === 'Escape') {
+                dropdown.style.display = 'none';
+                activeIndex = -1;
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+                activeIndex = -1;
+            }
+        });
+    }
+
+    document.querySelectorAll('.pair-van-search').forEach(setupPairVanAutocomplete);
 
     // --- Driver-only submit ---
     document.getElementById('driver-only-form').addEventListener('submit', async (e) => {

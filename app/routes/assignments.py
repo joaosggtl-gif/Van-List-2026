@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user, require_role
 from app.database import get_db
-from app.models import DailyAssignment, Van, Driver, User
+from app.models import DailyAssignment, Van, Driver, User, DriverVanPreassignment
 from app.schemas import AssignmentCreate, AssignmentOut, AssignmentPair
 from app.services.audit_service import log_action
 from app.services.import_service import import_vans, import_drivers
@@ -107,6 +107,27 @@ def create_assignment(
             status_code=409,
             detail="Conflict: this van or driver is already assigned on this date",
         )
+
+    # Auto-assign van from preassignment if driver-only
+    if assignment.driver_id is not None and assignment.van_id is None:
+        preassign = (
+            db.query(DriverVanPreassignment)
+            .filter(DriverVanPreassignment.driver_id == assignment.driver_id)
+            .first()
+        )
+        if preassign:
+            van_conflict = (
+                db.query(DailyAssignment)
+                .filter(
+                    DailyAssignment.assignment_date == data.assignment_date,
+                    DailyAssignment.van_id == preassign.van_id,
+                )
+                .first()
+            )
+            if not van_conflict:
+                assignment.van_id = preassign.van_id
+                van = db.query(Van).filter(Van.id == preassign.van_id).first()
+                db.flush()
 
     van_label = f"van '{van.code}'" if van else "no van"
     driver_label = f"driver '{driver.name}'" if driver else "no driver"
@@ -402,6 +423,23 @@ async def bulk_upload_drivers(
     # Map employee_id -> Driver object
     driver_map = {d.employee_id: d for d in drivers}
 
+    # Load preassignments for auto-van logic
+    preassign_map = {
+        pa.driver_id: pa.van_id
+        for pa in db.query(DriverVanPreassignment).all()
+    }
+
+    # Get all van_ids already assigned on this date
+    existing_van_ids = {
+        a.van_id for a in
+        db.query(DailyAssignment)
+        .filter(
+            DailyAssignment.assignment_date == assignment_date,
+            DailyAssignment.van_id.isnot(None),
+        )
+        .all()
+    }
+
     for eid in target_employee_ids:
         drv = driver_map.get(eid)
         if not drv:
@@ -409,10 +447,15 @@ async def bulk_upload_drivers(
         if drv.id in existing_ids:
             skipped_assign += 1
             continue
+        van_id = None
+        preassigned_van = preassign_map.get(drv.id)
+        if preassigned_van and preassigned_van not in existing_van_ids:
+            van_id = preassigned_van
+            existing_van_ids.add(van_id)
         asgn = DailyAssignment(
             assignment_date=assignment_date,
             driver_id=drv.id,
-            van_id=None,
+            van_id=van_id,
         )
         db.add(asgn)
         created += 1
