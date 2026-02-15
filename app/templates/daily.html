@@ -310,7 +310,12 @@
 <div id="unrecognized-card" class="card mb-3 border-danger" style="display:none;">
     <div class="card-header bg-danger text-white py-2 d-flex justify-content-between align-items-center">
         <span><i class="bi bi-exclamation-triangle"></i> Unrecognized Names</span>
-        <span class="badge bg-light text-danger" id="unrecognized-count">0</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-danger" id="unrecognized-count">0</span>
+            <button class="btn btn-sm btn-outline-light py-0 px-1" onclick="clearUnrecognizedNames()" title="Dismiss">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
     </div>
     <div class="card-body p-0">
         <p class="text-muted small px-3 pt-2 mb-1">These names from the uploaded file did not match any registered driver.</p>
@@ -796,9 +801,15 @@ if (CAN_EDIT) {
     });
 
     function showUnrecognizedNames(names) {
+        sessionStorage.setItem('unrecognized_names_' + CURRENT_DATE, JSON.stringify(names));
+        renderUnrecognizedNames(names);
+    }
+
+    function renderUnrecognizedNames(names) {
         const card = document.getElementById('unrecognized-card');
         const body = document.getElementById('unrecognized-body');
         const count = document.getElementById('unrecognized-count');
+        if (!names || names.length === 0) { card.style.display = 'none'; return; }
         body.innerHTML = '';
         names.forEach((name, i) => {
             const tr = document.createElement('tr');
@@ -807,8 +818,20 @@ if (CAN_EDIT) {
         });
         count.textContent = names.length;
         card.style.display = 'block';
-        card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
+
+    function clearUnrecognizedNames() {
+        sessionStorage.removeItem('unrecognized_names_' + CURRENT_DATE);
+        document.getElementById('unrecognized-card').style.display = 'none';
+    }
+
+    // Restore unrecognized names on page load
+    (function() {
+        const stored = sessionStorage.getItem('unrecognized_names_' + CURRENT_DATE);
+        if (stored) {
+            try { renderUnrecognizedNames(JSON.parse(stored)); } catch(e) {}
+        }
+    })();
 
     // --- Bulk upload forms ---
     document.getElementById('bulk-drivers-form').addEventListener('submit', async (e) => {
