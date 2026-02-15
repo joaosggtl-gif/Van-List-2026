@@ -379,16 +379,29 @@ async def bulk_upload_drivers(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("operator")),
 ):
-    """Upload XLSX/CSV to add drivers to a specific day as driver-only assignments."""
+    """Upload XLSX/CSV to add drivers to a specific day as driver-only assignments.
+
+    Supports three formats:
+    1. Simple: employee_id + name columns
+    2. Schedule: Associate name + Transporter ID
+    3. Driver Route: two-panel IN/OFF layout (matched by name)
+    """
     content = await file.read()
+
+    # Check for Driver Route format first (match by name, no import into drivers table)
+    from app.services.import_service import _detect_driver_route_format
+    route_names = _detect_driver_route_format(content, file.filename)
+
+    if route_names is not None:
+        return _bulk_assign_by_name(db, user, assignment_date, route_names, file.filename)
+
+    # Fallback to standard import (Schedule / Simple formats)
     result = import_drivers(db, content, file.filename, uploaded_by=user.username)
 
-    # Now create driver-only assignments for each imported/existing driver
     created = 0
     skipped_assign = 0
     drivers = db.query(Driver).filter(Driver.active == True).all()
 
-    # Get all driver_ids already assigned on this date
     existing_ids = {
         a.driver_id for a in
         db.query(DailyAssignment)
@@ -399,7 +412,6 @@ async def bulk_upload_drivers(
         .all()
     }
 
-    # Use the imported file to determine which drivers to add
     from app.services.import_service import _read_file, _safe_str, _detect_schedule_format
     df = _read_file(content, file.filename)
     schedule_info = _detect_schedule_format(df)
@@ -420,16 +432,13 @@ async def bulk_upload_drivers(
                 if eid:
                     target_employee_ids.add(eid)
 
-    # Map employee_id -> Driver object
     driver_map = {d.employee_id: d for d in drivers}
 
-    # Load preassignments for auto-van logic
     preassign_map = {
         pa.driver_id: pa.van_id
         for pa in db.query(DriverVanPreassignment).all()
     }
 
-    # Get all van_ids already assigned on this date
     existing_van_ids = {
         a.van_id for a in
         db.query(DailyAssignment)
@@ -476,6 +485,95 @@ async def bulk_upload_drivers(
         },
         "assignments_created": created,
         "assignments_skipped": skipped_assign,
+    }
+
+
+def _bulk_assign_by_name(db: Session, user: User, assignment_date: date, names: list[str], filename: str):
+    """Create daily assignments matching driver names from a Driver Route file."""
+    from sqlalchemy import func
+
+    active_drivers = db.query(Driver).filter(Driver.active == True).all()
+
+    # Build lookup: normalized name -> Driver (case-insensitive)
+    name_map: dict[str, Driver] = {}
+    for d in active_drivers:
+        name_map[d.name.strip().lower()] = d
+
+    # Get already assigned driver_ids for this date
+    existing_ids = {
+        a.driver_id for a in
+        db.query(DailyAssignment)
+        .filter(
+            DailyAssignment.assignment_date == assignment_date,
+            DailyAssignment.driver_id.isnot(None),
+        )
+        .all()
+    }
+
+    # Load preassignments
+    preassign_map = {
+        pa.driver_id: pa.van_id
+        for pa in db.query(DriverVanPreassignment).all()
+    }
+
+    existing_van_ids = {
+        a.van_id for a in
+        db.query(DailyAssignment)
+        .filter(
+            DailyAssignment.assignment_date == assignment_date,
+            DailyAssignment.van_id.isnot(None),
+        )
+        .all()
+    }
+
+    created = 0
+    skipped = 0
+    not_found = []
+
+    for name in names:
+        normalized = name.strip().lower()
+        drv = name_map.get(normalized)
+
+        if not drv:
+            not_found.append(name)
+            continue
+
+        if drv.id in existing_ids:
+            skipped += 1
+            continue
+
+        van_id = None
+        preassigned_van = preassign_map.get(drv.id)
+        if preassigned_van and preassigned_van not in existing_van_ids:
+            van_id = preassigned_van
+            existing_van_ids.add(van_id)
+
+        asgn = DailyAssignment(
+            assignment_date=assignment_date,
+            driver_id=drv.id,
+            van_id=van_id,
+        )
+        db.add(asgn)
+        existing_ids.add(drv.id)
+        created += 1
+
+    db.commit()
+
+    log_action(
+        db, user, "upload", "assignment", None,
+        f"Driver Route upload for {assignment_date} ({filename}): "
+        f"{created} created, {skipped} already assigned, {len(not_found)} not found",
+    )
+    db.commit()
+
+    return {
+        "import_result": {
+            "format": "driver_route",
+            "drivers_in_file": len(names),
+            "not_found": not_found,
+        },
+        "assignments_created": created,
+        "assignments_skipped": skipped,
     }
 
 

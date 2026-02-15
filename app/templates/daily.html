@@ -788,7 +788,11 @@ if (CAN_EDIT) {
             if (resp.status === 403) { showAlert('Permission denied.', 'danger', 'bulk-alert'); return; }
             const data = await resp.json();
             if (!resp.ok) { showAlert(data.detail || 'Error uploading', 'danger', 'bulk-alert'); return; }
-            showAlert(`Drivers uploaded: ${data.assignments_created} created, ${data.assignments_skipped} already assigned.`, 'success', 'bulk-alert');
+            let msg = `Drivers uploaded: ${data.assignments_created} created, ${data.assignments_skipped} already assigned.`;
+            if (data.import_result && data.import_result.not_found && data.import_result.not_found.length > 0) {
+                msg += ` <strong>${data.import_result.not_found.length} not found:</strong> ${data.import_result.not_found.join(', ')}`;
+            }
+            showAlert(msg, 'success', 'bulk-alert');
             setTimeout(() => window.location.reload(), 1500);
         } catch (err) { showAlert('Network error: ' + err.message, 'danger', 'bulk-alert'); }
     });

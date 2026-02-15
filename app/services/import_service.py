@@ -141,6 +141,47 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
     )
 
 
+def _detect_driver_route_format(content: bytes, filename: str):
+    """Detect 'Driver Route List' format with IN/OFF two-panel layout.
+
+    Returns list of driver names from the IN column, or None if not this format.
+    The file has:
+      - Metadata rows at the top (title, week, cap, etc.)
+      - A header row containing '# IN (N)' and '# OFF (N)'
+      - Driver names below each header, side by side
+    """
+    if filename.endswith(".csv"):
+        return None
+
+    df = pd.read_excel(io.BytesIO(content), dtype=str, engine="openpyxl", header=None)
+
+    # Find the header row with "# IN"
+    header_row_idx = None
+    in_name_col = None
+    for idx in range(min(15, len(df))):
+        for col in df.columns:
+            val = _safe_str(df.iloc[idx][col])
+            if val and "# in" in val.lower():
+                header_row_idx = idx
+                # The driver name column is the next column to the right
+                in_name_col = col + 1 if col + 1 < len(df.columns) else col
+                break
+        if header_row_idx is not None:
+            break
+
+    if header_row_idx is None:
+        return None
+
+    # Extract IN driver names from rows below the header
+    names = []
+    for idx in range(header_row_idx + 1, len(df)):
+        name = _safe_str(df.iloc[idx][in_name_col])
+        if name:
+            names.append(name)
+
+    return names
+
+
 def _detect_schedule_format(df: pd.DataFrame):
     """Detect Schedule XLSX format where headers are in a lower row.
 
