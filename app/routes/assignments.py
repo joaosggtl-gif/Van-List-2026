@@ -488,16 +488,63 @@ async def bulk_upload_drivers(
     }
 
 
+def _fuzzy_match_driver(file_name: str, drivers: list) -> "Driver | None":
+    """Match a short/informal name from the driver route file to a registered driver.
+
+    Strategy (in order):
+    1. Exact match (case-insensitive)
+    2. Last name exact + first name prefix (e.g., "Ben Angilley" -> "Benjamin Angilley")
+    3. All file name tokens found as prefixes in the DB name tokens
+       (e.g., "Simon Abbott" -> "Simon Peter Abbott")
+    """
+    normalized = file_name.strip().lower()
+    file_tokens = normalized.split()
+    if not file_tokens:
+        return None
+
+    # 1. Exact match
+    for d in drivers:
+        if d.name.strip().lower() == normalized:
+            return d
+
+    # 2. Last name exact + first name prefix
+    file_last = file_tokens[-1]
+    file_first = file_tokens[0]
+    candidates = []
+    for d in drivers:
+        db_tokens = d.name.strip().lower().split()
+        if not db_tokens:
+            continue
+        db_last = db_tokens[-1]
+        db_first = db_tokens[0]
+        # Last name must match exactly
+        if db_last != file_last:
+            continue
+        # First name: exact or prefix
+        if db_first == file_first or db_first.startswith(file_first) or file_first.startswith(db_first):
+            candidates.append(d)
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # 3. Token-based: all file tokens appear as prefixes of some DB token
+    for d in drivers:
+        db_tokens = d.name.strip().lower().split()
+        matched_all = True
+        for ft in file_tokens:
+            if not any(dt.startswith(ft) or ft.startswith(dt) for dt in db_tokens):
+                matched_all = False
+                break
+        if matched_all:
+            return d
+
+    return None
+
+
 def _bulk_assign_by_name(db: Session, user: User, assignment_date: date, names: list[str], filename: str):
     """Create daily assignments matching driver names from a Driver Route file."""
-    from sqlalchemy import func
 
     active_drivers = db.query(Driver).filter(Driver.active == True).all()
-
-    # Build lookup: normalized name -> Driver (case-insensitive)
-    name_map: dict[str, Driver] = {}
-    for d in active_drivers:
-        name_map[d.name.strip().lower()] = d
 
     # Get already assigned driver_ids for this date
     existing_ids = {
@@ -529,14 +576,18 @@ def _bulk_assign_by_name(db: Session, user: User, assignment_date: date, names: 
     created = 0
     skipped = 0
     not_found = []
+    matched_drivers = set()  # Prevent same driver matched twice
 
     for name in names:
-        normalized = name.strip().lower()
-        drv = name_map.get(normalized)
+        # Filter out already-matched drivers to avoid duplicates
+        available = [d for d in active_drivers if d.id not in matched_drivers]
+        drv = _fuzzy_match_driver(name, available)
 
         if not drv:
             not_found.append(name)
             continue
+
+        matched_drivers.add(drv.id)
 
         if drv.id in existing_ids:
             skipped += 1
