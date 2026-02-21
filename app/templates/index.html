@@ -49,6 +49,17 @@
     {% endfor %}
 </div>
 
+{% if can_edit %}
+<div class="d-flex align-items-center gap-2 mb-1">
+    <label class="form-check-label" style="font-size:0.78rem;">
+        <input type="checkbox" class="form-check-input" id="gridSelectAll" onchange="toggleAllGrid(this)"> Select All
+    </label>
+    <button id="btn-remove-grid" class="btn btn-danger btn-sm py-0 px-2" style="display:none; font-size:0.75rem;" onclick="removeSelectedGrid()">
+        <i class="bi bi-trash"></i> Remove Selected
+    </button>
+</div>
+{% endif %}
+
 <div class="van-grid-wrapper">
     <table class="table table-bordered table-sm van-grid-table mb-0">
         <thead class="sticky-top">
@@ -95,6 +106,9 @@
                     {% if is_grounded and not assignment %}
                         <span class="text-danger fw-bold">VOR</span>
                     {% elif assignment and assignment.driver %}
+                        {% if can_edit %}
+                        <input type="checkbox" class="form-check-input grid-checkbox" value="{{ assignment.id }}" onchange="updateRemoveGridBtn()" onclick="event.stopPropagation()" style="margin:0 3px 0 0; vertical-align:middle; flex-shrink:0;">
+                        {% endif %}
                         <span class="driver-name">{{ assignment.driver.name | short_name }}</span>
                     {% elif assignment and not assignment.driver %}
                         <span class="text-warning">—</span>
@@ -664,6 +678,42 @@
         }
     }
 })();
+
+// --- Grid: multi-select delete ---
+function toggleAllGrid(source) {
+    document.querySelectorAll('.grid-checkbox').forEach(cb => { cb.checked = source.checked; });
+    updateRemoveGridBtn();
+}
+
+function updateRemoveGridBtn() {
+    const btn = document.getElementById('btn-remove-grid');
+    if (!btn) return;
+    const checked = document.querySelectorAll('.grid-checkbox:checked').length;
+    btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    btn.innerHTML = `<i class="bi bi-trash"></i> Remove Selected (${checked})`;
+}
+
+async function removeSelectedGrid() {
+    const ids = Array.from(document.querySelectorAll('.grid-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Remove ${ids.length} selected assignment(s)?`)) return;
+    try {
+        const results = await Promise.all(ids.map(id =>
+            fetch(`/api/assignments/${id}`, { method: 'DELETE' })
+        ));
+        const unauthorized = results.find(r => r.status === 401);
+        if (unauthorized) { window.location.href = '/login'; return; }
+        const forbidden = results.find(r => r.status === 403);
+        if (forbidden) { alert('Permission denied.'); return; }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+            alert(`${ids.length - failed.length} removed, ${failed.length} failed.`);
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
 
 // --- Driver-only: multi-select delete ---
 function toggleAllDriverOnly(source) {
