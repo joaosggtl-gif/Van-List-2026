@@ -685,11 +685,12 @@
             });
             const data = await res.json();
             if (res.ok) {
-                const count = data.assigned || data.matched || 0;
+                const count = data.assignments_created || 0;
                 showAlert(`Upload successful! ${count} driver(s) assigned.`, 'success');
-                if (data.unrecognized && data.unrecognized.length > 0) {
+                const notFound = (data.import_result && data.import_result.not_found) || [];
+                if (notFound.length > 0) {
                     const tbody = unrecTable.querySelector('tbody');
-                    data.unrecognized.forEach(name => {
+                    notFound.forEach(name => {
                         const tr = document.createElement('tr');
                         const td = document.createElement('td');
                         td.textContent = name;
