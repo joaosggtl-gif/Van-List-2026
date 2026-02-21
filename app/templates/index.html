@@ -281,7 +281,7 @@
         const dateVal = activeCell.dataset.date;
 
         try {
-            const res = await fetch(`/api/assignments/available-drivers?assignment_date=${dateVal}&q=${encodeURIComponent(query)}`);
+            const res = await fetch(`/api/assignments/assignable-drivers-for-van?assignment_date=${dateVal}&q=${encodeURIComponent(query)}`);
             const drivers = await res.json();
 
             driverList.innerHTML = '';
@@ -293,6 +293,9 @@
                 const item = document.createElement('div');
                 item.className = 'cell-driver-item';
                 item.textContent = d.name;
+                if (d.existing_assignment_id) {
+                    item.innerHTML = `${d.name} <span class="badge bg-warning text-dark" style="font-size:0.6rem">awaiting van</span>`;
+                }
                 item.dataset.driverId = d.id;
                 item.addEventListener('click', () => selectDriver(d));
                 driverList.appendChild(item);
@@ -307,13 +310,25 @@
 
         const vanId = parseInt(activeCell.dataset.vanId);
         const dateVal = activeCell.dataset.date;
-        const existingId = activeCell.dataset.assignmentId;
+        const cellAssignmentId = activeCell.dataset.assignmentId;
 
         try {
             let res;
-            if (existingId) {
-                // Update existing assignment
-                res = await fetch(`/api/assignments/${existingId}`, {
+            if (cellAssignmentId) {
+                // Van cell already has an assignment — update it
+                res = await fetch(`/api/assignments/${cellAssignmentId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        assignment_date: dateVal,
+                        van_id: vanId,
+                        driver_id: driver.id,
+                        notes: null
+                    })
+                });
+            } else if (driver.existing_assignment_id) {
+                // Driver has a driver-only assignment — update it to add the van
+                res = await fetch(`/api/assignments/${driver.existing_assignment_id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -324,7 +339,7 @@
                     })
                 });
             } else {
-                // Create new assignment
+                // No existing assignment — create new
                 res = await fetch('/api/assignments', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -344,6 +359,11 @@
                 activeCell.dataset.driverId = driver.id;
                 activeCell.dataset.driverName = driver.name;
                 closeDropdown();
+                // Remove from driver-only section if they were there
+                if (driver.existing_assignment_id) {
+                    const chip = document.querySelector(`[data-driveronly-id="${driver.existing_assignment_id}"]`);
+                    if (chip) chip.remove();
+                }
             } else {
                 const err = await res.json();
                 alert(err.detail || 'Error assigning driver');

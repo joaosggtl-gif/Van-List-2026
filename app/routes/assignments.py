@@ -372,6 +372,63 @@ def available_drivers_for_date(
     return [{"id": d.id, "employee_id": d.employee_id, "name": d.name} for d in query.order_by(Driver.name).limit(20).all()]
 
 
+@router.get("/assignable-drivers-for-van")
+def assignable_drivers_for_van(
+    assignment_date: date = Query(...),
+    q: str = Query(""),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """Return drivers that can be assigned to a van on a given date.
+
+    Includes completely unassigned drivers AND drivers with driver-only
+    assignments (who still need a van).  Excludes drivers already paired
+    with a van on that date.
+    """
+    # IDs of drivers already paired with a van on this date
+    paired_driver_ids = (
+        select(DailyAssignment.driver_id)
+        .where(
+            DailyAssignment.assignment_date == assignment_date,
+            DailyAssignment.driver_id.isnot(None),
+            DailyAssignment.van_id.isnot(None),
+        )
+        .scalar_subquery()
+    )
+    query = (
+        db.query(Driver)
+        .filter(Driver.active == True, Driver.id.notin_(paired_driver_ids))
+    )
+    if q:
+        query = query.filter(
+            (Driver.name.ilike(f"%{q}%")) | (Driver.employee_id.ilike(f"%{q}%"))
+        )
+    drivers = query.order_by(Driver.name).limit(50).all()
+
+    # Look up existing driver-only assignments so the frontend knows to PUT
+    driver_ids = [d.id for d in drivers]
+    driver_only_assignments = (
+        db.query(DailyAssignment)
+        .filter(
+            DailyAssignment.assignment_date == assignment_date,
+            DailyAssignment.driver_id.in_(driver_ids),
+            DailyAssignment.van_id.is_(None),
+        )
+        .all()
+    )
+    existing_map = {a.driver_id: a.id for a in driver_only_assignments}
+
+    return [
+        {
+            "id": d.id,
+            "employee_id": d.employee_id,
+            "name": d.name,
+            "existing_assignment_id": existing_map.get(d.id),
+        }
+        for d in drivers
+    ]
+
+
 @router.post("/bulk-upload-drivers")
 async def bulk_upload_drivers(
     assignment_date: date = Query(...),
