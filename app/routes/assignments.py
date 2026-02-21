@@ -90,7 +90,7 @@ def create_assignment(
         if existing_driver:
             raise HTTPException(
                 status_code=409,
-                detail=f"Driver '{driver.name}' already has an assignment on {data.assignment_date}",
+                detail=f"Driver '{short_name(driver.name)}' already has an assignment on {data.assignment_date}",
             )
 
     assignment = DailyAssignment(
@@ -131,7 +131,7 @@ def create_assignment(
                 db.flush()
 
     van_label = f"van '{van.code}'" if van else "no van"
-    driver_label = f"driver '{driver.name}'" if driver else "no driver"
+    driver_label = f"driver '{short_name(driver.name)}'" if driver else "no driver"
     log_action(
         db, user, "create", "assignment", assignment.id,
         f"Assigned {van_label} to {driver_label} on {data.assignment_date}",
@@ -184,7 +184,7 @@ def update_assignment(
             driver = db.query(Driver).filter(Driver.id == data.driver_id).first()
             raise HTTPException(
                 status_code=409,
-                detail=f"Driver '{driver.name}' already has an assignment on {data.assignment_date}",
+                detail=f"Driver '{short_name(driver.name)}' already has an assignment on {data.assignment_date}",
             )
 
     assignment.assignment_date = data.assignment_date

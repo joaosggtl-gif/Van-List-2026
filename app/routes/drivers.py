@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user, require_role
 from app.database import get_db
 from app.models import Driver, User
+from app.routes.pages import short_name
 from app.schemas import DriverOut
 from app.services.audit_service import log_action
 
@@ -46,7 +47,7 @@ def delete_driver(
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
     driver.active = False
-    log_action(db, user, "delete", "driver", driver.id, f"Deactivated driver '{driver.name}'")
+    log_action(db, user, "delete", "driver", driver.id, f"Deactivated driver '{short_name(driver.name)}'")
     db.commit()
     return {"id": driver.id, "active": driver.active}
 
@@ -61,6 +62,6 @@ def toggle_driver(
     if not driver:
         return {"error": "Driver not found"}
     driver.active = not driver.active
-    log_action(db, user, "update", "driver", driver.id, f"Toggled driver '{driver.name}' active={driver.active}")
+    log_action(db, user, "update", "driver", driver.id, f"Toggled driver '{short_name(driver.name)}' active={driver.active}")
     db.commit()
     return {"id": driver.id, "active": driver.active}
