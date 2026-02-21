@@ -274,6 +274,78 @@
         } catch (e) { alert('Network error'); }
     }
 
+    async function setVOR() {
+        if (!activeCell) return;
+        const vanId = parseInt(activeCell.dataset.vanId);
+        const dateVal = activeCell.dataset.date;
+        const cellAssignmentId = activeCell.dataset.assignmentId;
+
+        try {
+            let res;
+            if (cellAssignmentId) {
+                // Update existing: set driver to null (van-only = VOR)
+                res = await fetch(`/api/assignments/${cellAssignmentId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assignment_date: dateVal, van_id: vanId, driver_id: null, notes: 'VOR' })
+                });
+            } else {
+                // Create new van-only assignment
+                res = await fetch('/api/assignments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assignment_date: dateVal, van_id: vanId, driver_id: null, notes: 'VOR' })
+                });
+            }
+            if (res.ok) {
+                const data = await res.json();
+                const dd = activeCell.querySelector('.cell-inline-dropdown');
+                if (dd) dd.remove();
+                activeCell.classList.remove('cell-editing');
+                activeCell.innerHTML = '<span class="text-danger fw-bold">VOR</span>';
+                activeCell.dataset.assignmentId = data.id;
+                delete activeCell.dataset.driverId;
+                delete activeCell.dataset.driverName;
+                activeCell = null;
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error setting VOR');
+            }
+        } catch (e) { alert('Network error'); }
+    }
+
+    async function removeDriverFromAssignment() {
+        if (!activeCell) return;
+        const cellAssignmentId = activeCell.dataset.assignmentId;
+        if (!cellAssignmentId) { closeEditor(); return; }
+
+        const vanId = parseInt(activeCell.dataset.vanId);
+        const dateVal = activeCell.dataset.date;
+
+        try {
+            // Update assignment: keep van, remove driver
+            const res = await fetch(`/api/assignments/${cellAssignmentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assignment_date: dateVal, van_id: vanId, driver_id: null, notes: null })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const dd = activeCell.querySelector('.cell-inline-dropdown');
+                if (dd) dd.remove();
+                activeCell.classList.remove('cell-editing');
+                activeCell.innerHTML = '<span class="text-warning">—</span>';
+                activeCell.dataset.assignmentId = data.id;
+                delete activeCell.dataset.driverId;
+                delete activeCell.dataset.driverName;
+                activeCell = null;
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error removing driver');
+            }
+        } catch (e) { alert('Network error'); }
+    }
+
     async function loadDrivers(input, list, query) {
         if (!activeCell) return;
         const dateVal = activeCell.dataset.date;
@@ -281,8 +353,40 @@
             const res = await fetch(`/api/assignments/assignable-drivers-for-van?assignment_date=${dateVal}&q=${encodeURIComponent(query)}`);
             const drivers = await res.json();
             list.innerHTML = '';
-            if (drivers.length === 0) {
-                list.innerHTML = '<div class="p-2 text-muted" style="font-size:0.78rem">No drivers found</div>';
+
+            // Add special options at the top (only when not filtering by search)
+            if (!query) {
+                const hasAssignment = !!activeCell.dataset.assignmentId;
+
+                // "Free" option - clear assignment (make cell free)
+                const freeItem = document.createElement('div');
+                freeItem.className = 'cell-inline-item';
+                freeItem.style.cssText = 'color:#198754; font-weight:600; border-bottom:1px solid #dee2e6;';
+                freeItem.innerHTML = '<i class="bi bi-check-circle"></i> Free';
+                freeItem.addEventListener('click', () => clearAssignment());
+                list.appendChild(freeItem);
+
+                // "VOR" option - mark van as out of service for this day (van-only, no driver)
+                const vorItem = document.createElement('div');
+                vorItem.className = 'cell-inline-item';
+                vorItem.style.cssText = 'color:#dc3545; font-weight:600; border-bottom:1px solid #dee2e6;';
+                vorItem.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> VOR';
+                vorItem.addEventListener('click', () => setVOR());
+                list.appendChild(vorItem);
+
+                // "Remove driver" option - remove driver but keep van assignment
+                if (hasAssignment && activeCell.dataset.driverId) {
+                    const removeItem = document.createElement('div');
+                    removeItem.className = 'cell-inline-item';
+                    removeItem.style.cssText = 'color:#6c757d; font-weight:600; border-bottom:1px solid #dee2e6;';
+                    removeItem.innerHTML = '<i class="bi bi-person-x"></i> Remove driver';
+                    removeItem.addEventListener('click', () => removeDriverFromAssignment());
+                    list.appendChild(removeItem);
+                }
+            }
+
+            if (drivers.length === 0 && query) {
+                list.innerHTML += '<div class="p-2 text-muted" style="font-size:0.78rem">No drivers found</div>';
                 return;
             }
             drivers.forEach(d => {
