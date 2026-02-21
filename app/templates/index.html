@@ -221,7 +221,7 @@
         }
 
         searchInput.value = '';
-        searchInput.focus();
+        searchInput.focus({ preventScroll: true });
         loadDrivers('');
     }
 
@@ -433,7 +433,7 @@
                 }
 
                 vanSearchInput.value = '';
-                vanSearchInput.focus();
+                vanSearchInput.focus({ preventScroll: true });
                 loadVans('');
             });
         });
