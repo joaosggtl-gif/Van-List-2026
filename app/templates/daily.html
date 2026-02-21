@@ -552,7 +552,7 @@ if (CAN_EDIT) {
 
         function selectItem(item) {
             hidden.value = item.id;
-            input.value = item.code || `${item.employee_id} - ${item.name}`;
+            input.value = item.code || `${item.employee_id} - ${item.short_name || item.name}`;
             input.classList.add('is-valid');
             dropdown.style.display = 'none';
             activeIndex = -1;
@@ -643,7 +643,7 @@ if (CAN_EDIT) {
                                 div.textContent = label;
                             }
                         } else {
-                            div.textContent = `${item.employee_id} - ${item.name}`;
+                            div.textContent = `${item.employee_id} - ${item.short_name || item.name}`;
                         }
                         div.addEventListener('click', () => selectItem(item));
                         div.addEventListener('mouseenter', () => {
