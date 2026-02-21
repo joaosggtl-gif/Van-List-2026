@@ -124,12 +124,13 @@
         </span>
         {% endif %}
     </div>
-    <div class="card-body p-2">
-        <div class="row">
+    <div class="card-body p-2 driveronly-scroll">
+        <div class="driveronly-grid">
+            <div class="driveronly-spacer"></div>
             {% for day in days %}
             {% set day_iso = day.isoformat() %}
             {% set unassigned = driver_only_by_date[day_iso] %}
-            <div class="col">
+            <div class="driveronly-day-col">
                 <small class="fw-bold">{{ day.strftime('%a %d/%m') }}</small>
                 {% for a in unassigned %}
                 <div class="assignment-chip chip-unpaired mb-1 d-flex align-items-center gap-1" data-driveronly-id="{{ a.id }}" data-driveronly-driver-id="{{ a.driver_id }}" data-driveronly-date="{{ day_iso }}">

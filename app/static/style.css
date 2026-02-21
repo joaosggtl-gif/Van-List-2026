@@ -314,6 +314,27 @@ body {
     border-bottom: none;
 }
 
+/* Driver-only grid aligned with van-grid-table columns */
+.driveronly-scroll {
+    overflow-x: auto;
+}
+
+.driveronly-grid {
+    display: grid;
+    grid-template-columns: 220px repeat(7, 1fr);
+    min-width: 1060px;
+    gap: 0;
+}
+
+.driveronly-spacer {
+    min-width: 220px;
+}
+
+.driveronly-day-col {
+    padding: 2px 6px;
+    min-width: 120px;
+}
+
 /* Checkbox inside assignment chips */
 .assignment-chip .driveronly-checkbox {
     width: 14px;
