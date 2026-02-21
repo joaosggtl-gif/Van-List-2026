@@ -96,3 +96,148 @@ body {
     top: 0;
     z-index: 10;
 }
+
+/* ========== Van Grid (spreadsheet view) ========== */
+.van-grid-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 180px);
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background: white;
+}
+
+.van-grid-table {
+    margin: 0;
+    table-layout: fixed;
+}
+
+.van-grid-table thead th {
+    font-size: 0.78rem;
+    text-align: center;
+    vertical-align: middle;
+    padding: 6px 4px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #212529;
+    border-color: #495057;
+}
+
+.van-grid-table .col-preassign {
+    width: 110px;
+    min-width: 110px;
+}
+
+.van-grid-table .col-van {
+    width: 110px;
+    min-width: 110px;
+}
+
+.van-grid-table .col-day {
+    min-width: 120px;
+}
+
+.van-grid-table .col-today {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+.van-grid-table thead .col-today {
+    background: #0d6efd !important;
+}
+
+/* Cell styles */
+.van-grid-table td {
+    font-size: 0.8rem;
+    padding: 3px 6px;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cell-preassign {
+    background: #f8f9fa;
+    color: #6c757d;
+    font-size: 0.75rem !important;
+}
+
+.cell-van {
+    background: #f0f4f8;
+    font-size: 0.78rem !important;
+}
+
+.cell-driver {
+    text-align: center;
+    cursor: default;
+}
+
+.cell-editable {
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.cell-editable:hover {
+    background-color: #e3f2fd !important;
+}
+
+.cell-driver .driver-name {
+    color: #212529;
+    font-weight: 500;
+}
+
+/* Grounded van row */
+.row-grounded {
+    background-color: #fff5f5;
+}
+
+.row-grounded td {
+    background-color: #fff5f5;
+}
+
+.row-grounded .col-today {
+    background-color: rgba(220, 53, 69, 0.08) !important;
+}
+
+/* Cell autocomplete dropdown */
+.cell-autocomplete-dropdown {
+    position: absolute;
+    z-index: 9999;
+    background: white;
+    border: 1px solid #0d6efd;
+    border-radius: 0.375rem;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    width: 220px;
+    max-width: 280px;
+}
+
+.cell-autocomplete-dropdown input {
+    border: none;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 0.375rem 0.375rem 0 0;
+    font-size: 0.85rem;
+}
+
+.cell-autocomplete-dropdown input:focus {
+    box-shadow: none;
+}
+
+.cell-driver-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.cell-driver-item {
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.cell-driver-item:hover {
+    background-color: #e9ecef;
+}
+
+.cell-driver-item:last-child {
+    border-bottom: none;
+}

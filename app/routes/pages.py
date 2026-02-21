@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import RedirectResponse
@@ -85,6 +85,21 @@ def index(
     week_start, week_end = get_week_dates(week)
     days = get_week_days(week)
 
+    # Load all active vans ordered by code
+    all_vans = db.query(Van).filter(Van.active == True).order_by(Van.code).all()
+
+    # Load preassignments
+    preassignments = (
+        db.query(DriverVanPreassignment)
+        .options(
+            joinedload(DriverVanPreassignment.driver),
+            joinedload(DriverVanPreassignment.van),
+        )
+        .all()
+    )
+    preassign_by_van = {pa.van_id: pa.driver.name for pa in preassignments}
+
+    # Load assignments for the week
     assignments = (
         db.query(DailyAssignment)
         .options(joinedload(DailyAssignment.van), joinedload(DailyAssignment.driver))
@@ -96,18 +111,37 @@ def index(
         .all()
     )
 
-    assignments_by_date = {}
+    # Build grid: van_id -> { day_iso -> assignment }
+    grid = {}
+    for van in all_vans:
+        grid[van.id] = {}
+        for day in days:
+            grid[van.id][day.isoformat()] = None
+
+    # Also track driver-only assignments (no van)
+    driver_only_by_date = {d.isoformat(): [] for d in days}
+
+    for a in assignments:
+        day_iso = a.assignment_date.isoformat()
+        if a.van_id and a.van_id in grid:
+            grid[a.van_id][day_iso] = a
+        elif a.driver_id and not a.van_id:
+            driver_only_by_date[day_iso].append(a)
+
+    # Count stats
     counts_by_date = {}
     for d in days:
-        assignments_by_date[d] = []
-        counts_by_date[d] = {"paired": 0, "total": 0}
-    for a in assignments:
-        assignments_by_date[a.assignment_date].append(a)
-        counts_by_date[a.assignment_date]["total"] += 1
-        if a.van_id is not None and a.driver_id is not None:
-            counts_by_date[a.assignment_date]["paired"] += 1
+        day_iso = d.isoformat()
+        paired = 0
+        total = 0
+        for a in assignments:
+            if a.assignment_date == d:
+                total += 1
+                if a.van_id and a.driver_id:
+                    paired += 1
+        counts_by_date[day_iso] = {"paired": paired, "total": total}
 
-    total_vans = db.query(Van).filter(Van.active == True).count()
+    total_vans = len(all_vans)
     total_drivers = db.query(Driver).filter(Driver.active == True).count()
 
     return templates.TemplateResponse("index.html", _ctx(
@@ -116,7 +150,10 @@ def index(
         week_start=week_start,
         week_end=week_end,
         days=days,
-        assignments_by_date=assignments_by_date,
+        all_vans=all_vans,
+        grid=grid,
+        preassign_by_van=preassign_by_van,
+        driver_only_by_date=driver_only_by_date,
         counts_by_date=counts_by_date,
         total_vans=total_vans,
         total_drivers=total_drivers,
@@ -157,9 +194,14 @@ def daily_page(
         if a.van_id:
             assigned_van_ids.add(a.van_id)
 
+    prev_date = target_date - timedelta(days=1)
+    next_date = target_date + timedelta(days=1)
+
     return templates.TemplateResponse("daily.html", _ctx(
         request, user,
         target_date=target_date,
+        prev_date=prev_date,
+        next_date=next_date,
         week_number=week_num,
         assignments=assignments,
         paired=paired,

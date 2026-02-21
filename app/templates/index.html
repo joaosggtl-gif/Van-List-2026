@@ -19,74 +19,323 @@
             Next <i class="bi bi-chevron-right"></i>
         </a>
         <a href="/api/export/weekly?week={{ current_week }}" class="btn btn-success btn-sm">
-            <i class="bi bi-download"></i> Export Week XLSX
+            <i class="bi bi-download"></i> Export XLSX
         </a>
     </div>
 </div>
 
-<div class="row">
-{% for day in days %}
-    {% set day_assignments = assignments_by_date[day] %}
-    {% set day_counts = counts_by_date[day] %}
-    {% set is_today = day == today %}
-    <div class="col-12 col-xl mb-3">
-        <div class="card {% if is_today %}border-primary{% endif %} h-100">
-            <div class="card-header {% if is_today %}bg-primary text-white{% else %}bg-light{% endif %} d-flex justify-content-between align-items-center py-2">
-                <div>
-                    <strong>{{ day.strftime('%a') }}</strong>
-                    <br><small>{{ day.strftime('%b %d') }}</small>
-                </div>
-                <div class="d-flex gap-1">
-                    <span class="badge {% if is_today %}bg-light text-primary{% else %}bg-secondary{% endif %}" title="{{ day_counts.paired }} paired / {{ day_counts.total }} total">
-                        {% if day_counts.paired == day_counts.total %}
-                            {{ day_counts.total }}
-                        {% else %}
-                            {{ day_counts.paired }}/{{ day_counts.total }}
-                        {% endif %}
-                    </span>
-                    <a href="/day/{{ day.isoformat() }}" class="btn btn-sm {% if is_today %}btn-light{% else %}btn-outline-secondary{% endif %}" title="{% if can_edit %}Edit day{% else %}View day{% endif %}">
-                        <i class="bi bi-{% if can_edit %}pencil-square{% else %}eye{% endif %}"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="card-body p-2 day-card-body">
-                {% if day_assignments %}
-                    {% for a in day_assignments %}
-                    {% if a.van_id and a.driver_id %}
-                    {# Paired #}
-                    <div class="assignment-chip mb-1 {% if a.van.operational_status == 'GROUNDED' %}chip-grounded{% endif %}">
-                        <small>
-                            <strong>{{ a.van.code }}</strong>
-                            {% if a.van.operational_status == 'GROUNDED' %}<i class="bi bi-exclamation-triangle text-danger"></i>{% endif %}
-                            <i class="bi bi-arrow-right"></i>
-                            {{ a.driver.name }}
-                        </small>
-                    </div>
-                    {% elif a.driver_id and not a.van_id %}
-                    {# Driver only #}
-                    <div class="assignment-chip chip-unpaired mb-1">
-                        <small>
-                            <i class="bi bi-person"></i>
-                            {{ a.driver.name }}
-                        </small>
-                    </div>
-                    {% elif a.van_id and not a.driver_id %}
-                    {# Van only #}
-                    <div class="assignment-chip chip-unpaired mb-1 {% if a.van.operational_status == 'GROUNDED' %}chip-grounded{% endif %}">
-                        <small>
-                            <i class="bi bi-truck"></i>
-                            <strong>{{ a.van.code }}</strong>
-                            {% if a.van.operational_status == 'GROUNDED' %}<i class="bi bi-exclamation-triangle text-danger"></i>{% endif %}
-                        </small>
-                    </div>
+{# Day stats row #}
+<div class="d-flex gap-2 mb-2 flex-wrap">
+    {% for day in days %}
+    {% set day_iso = day.isoformat() %}
+    {% set dc = counts_by_date[day_iso] %}
+    <span class="badge {% if day == today %}bg-primary{% else %}bg-secondary{% endif %}">
+        {{ day.strftime('%a') }}: {{ dc.paired }}/{{ dc.total }}
+    </span>
+    {% endfor %}
+</div>
+
+<div class="van-grid-wrapper">
+    <table class="table table-bordered table-sm van-grid-table mb-0">
+        <thead class="sticky-top">
+            <tr class="bg-dark text-white">
+                <th class="col-preassign">Preassign</th>
+                <th class="col-van">Van</th>
+                {% for day in days %}
+                {% set is_today = day == today %}
+                <th class="col-day {% if is_today %}col-today{% endif %}">
+                    <div>{{ day.strftime('%A') }}</div>
+                    <small>{{ day.strftime('%d/%m') }}</small>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for van in all_vans %}
+            {% set van_grid = grid[van.id] %}
+            {% set is_grounded = van.operational_status == 'GROUNDED' %}
+            <tr class="{% if is_grounded %}row-grounded{% endif %}">
+                <td class="col-preassign cell-preassign">
+                    {{ preassign_by_van.get(van.id, '') }}
+                </td>
+                <td class="col-van cell-van {% if is_grounded %}text-danger{% endif %}">
+                    <strong>{{ van.code }}</strong>
+                    {% if is_grounded %}
+                    <i class="bi bi-exclamation-triangle-fill text-danger" title="GROUNDED"></i>
                     {% endif %}
-                    {% endfor %}
-                {% else %}
-                    <small class="text-muted">No assignments</small>
+                </td>
+                {% for day in days %}
+                {% set day_iso = day.isoformat() %}
+                {% set assignment = van_grid[day_iso] %}
+                {% set is_today = day == today %}
+                <td class="col-day cell-driver {% if is_today %}col-today{% endif %} {% if can_edit %}cell-editable{% endif %}"
+                    data-van-id="{{ van.id }}"
+                    data-van-code="{{ van.code }}"
+                    data-date="{{ day_iso }}"
+                    {% if assignment %}
+                    data-assignment-id="{{ assignment.id }}"
+                    data-driver-id="{{ assignment.driver_id or '' }}"
+                    data-driver-name="{{ assignment.driver.name if assignment.driver else '' }}"
+                    {% endif %}
+                >
+                    {% if is_grounded and not assignment %}
+                        <span class="text-danger fw-bold">VOR</span>
+                    {% elif assignment and assignment.driver %}
+                        <span class="driver-name">{{ assignment.driver.name }}</span>
+                    {% elif assignment and not assignment.driver %}
+                        <span class="text-warning">—</span>
+                    {% else %}
+                        <span class="text-muted">Free</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{# Driver-only assignments (not assigned to any van) #}
+{% set has_driver_only = namespace(val=false) %}
+{% for day in days %}
+{% set day_iso = day.isoformat() %}
+{% if driver_only_by_date[day_iso] | length > 0 %}
+    {% set has_driver_only.val = true %}
+{% endif %}
+{% endfor %}
+
+{% if has_driver_only.val %}
+<div class="card mt-3">
+    <div class="card-header bg-warning bg-opacity-25">
+        <i class="bi bi-person-exclamation"></i> <strong>Drivers without van</strong>
+    </div>
+    <div class="card-body p-2">
+        <div class="row">
+            {% for day in days %}
+            {% set day_iso = day.isoformat() %}
+            {% set unassigned = driver_only_by_date[day_iso] %}
+            <div class="col">
+                <small class="fw-bold">{{ day.strftime('%a %d/%m') }}</small>
+                {% for a in unassigned %}
+                <div class="assignment-chip chip-unpaired mb-1">
+                    <small>
+                        <i class="bi bi-person"></i>
+                        {{ a.driver.name }}
+                        {% if can_edit %}
+                        <a href="/day/{{ day_iso }}" class="text-decoration-none ms-1" title="Edit on daily page">
+                            <i class="bi bi-pencil-square"></i>
+                        </a>
+                        {% endif %}
+                    </small>
+                </div>
+                {% endfor %}
+                {% if not unassigned %}
+                <small class="text-muted">—</small>
                 {% endif %}
             </div>
+            {% endfor %}
         </div>
     </div>
-{% endfor %}
 </div>
+{% endif %}
+
+{# Autocomplete dropdown (reused for all cells) #}
+{% if can_edit %}
+<div id="cellAutocomplete" class="cell-autocomplete-dropdown" style="display:none;">
+    <input type="text" id="cellSearchInput" class="form-control form-control-sm" placeholder="Search driver...">
+    <div id="cellDriverList" class="cell-driver-list"></div>
+    <hr class="my-1">
+    <div class="d-flex gap-1 p-1">
+        <button type="button" class="btn btn-outline-danger btn-sm flex-fill" id="cellClearBtn" title="Remove driver">
+            <i class="bi bi-x-lg"></i> Clear
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="cellCancelBtn" title="Cancel">
+            <i class="bi bi-escape"></i>
+        </button>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if can_edit %}
+<script>
+(function() {
+    const dropdown = document.getElementById('cellAutocomplete');
+    const searchInput = document.getElementById('cellSearchInput');
+    const driverList = document.getElementById('cellDriverList');
+    const clearBtn = document.getElementById('cellClearBtn');
+    const cancelBtn = document.getElementById('cellCancelBtn');
+
+    let activeCell = null;
+    let searchTimeout = null;
+
+    // Click on editable cell
+    document.querySelectorAll('.cell-editable').forEach(cell => {
+        cell.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openDropdown(this);
+        });
+    });
+
+    function openDropdown(cell) {
+        if (activeCell === cell && dropdown.style.display !== 'none') {
+            closeDropdown();
+            return;
+        }
+        activeCell = cell;
+
+        // Position dropdown below the cell
+        const rect = cell.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+        dropdown.style.display = 'block';
+        dropdown.style.top = (rect.bottom + scrollTop) + 'px';
+        dropdown.style.left = (rect.left + scrollLeft) + 'px';
+        dropdown.style.width = Math.max(rect.width, 220) + 'px';
+
+        searchInput.value = '';
+        searchInput.focus();
+        loadDrivers('');
+    }
+
+    function closeDropdown() {
+        dropdown.style.display = 'none';
+        activeCell = null;
+        driverList.innerHTML = '';
+    }
+
+    // Close on click outside
+    document.addEventListener('click', function(e) {
+        if (dropdown.style.display !== 'none' && !dropdown.contains(e.target)) {
+            closeDropdown();
+        }
+    });
+
+    // Prevent dropdown click from closing
+    dropdown.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+
+    // Search input
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => loadDrivers(this.value), 200);
+    });
+
+    // Escape key
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDropdown();
+        }
+    });
+
+    cancelBtn.addEventListener('click', closeDropdown);
+
+    // Clear assignment
+    clearBtn.addEventListener('click', async function() {
+        if (!activeCell) return;
+        const assignmentId = activeCell.dataset.assignmentId;
+        if (!assignmentId) {
+            closeDropdown();
+            return;
+        }
+        try {
+            const res = await fetch(`/api/assignments/${assignmentId}`, { method: 'DELETE' });
+            if (res.ok) {
+                // Update cell display
+                activeCell.innerHTML = '<span class="text-muted">Free</span>';
+                delete activeCell.dataset.assignmentId;
+                delete activeCell.dataset.driverId;
+                delete activeCell.dataset.driverName;
+                closeDropdown();
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error removing assignment');
+            }
+        } catch (e) {
+            alert('Network error');
+        }
+    });
+
+    async function loadDrivers(query) {
+        if (!activeCell) return;
+        const dateVal = activeCell.dataset.date;
+
+        try {
+            const res = await fetch(`/api/assignments/available-drivers?assignment_date=${dateVal}&q=${encodeURIComponent(query)}`);
+            const drivers = await res.json();
+
+            driverList.innerHTML = '';
+            if (drivers.length === 0) {
+                driverList.innerHTML = '<div class="p-2 text-muted small">No drivers found</div>';
+                return;
+            }
+            drivers.forEach(d => {
+                const item = document.createElement('div');
+                item.className = 'cell-driver-item';
+                item.textContent = d.name;
+                item.dataset.driverId = d.id;
+                item.addEventListener('click', () => selectDriver(d));
+                driverList.appendChild(item);
+            });
+        } catch (e) {
+            driverList.innerHTML = '<div class="p-2 text-danger small">Error loading drivers</div>';
+        }
+    }
+
+    async function selectDriver(driver) {
+        if (!activeCell) return;
+
+        const vanId = parseInt(activeCell.dataset.vanId);
+        const dateVal = activeCell.dataset.date;
+        const existingId = activeCell.dataset.assignmentId;
+
+        try {
+            let res;
+            if (existingId) {
+                // Update existing assignment
+                res = await fetch(`/api/assignments/${existingId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        assignment_date: dateVal,
+                        van_id: vanId,
+                        driver_id: driver.id,
+                        notes: null
+                    })
+                });
+            } else {
+                // Create new assignment
+                res = await fetch('/api/assignments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        assignment_date: dateVal,
+                        van_id: vanId,
+                        driver_id: driver.id,
+                        notes: null
+                    })
+                });
+            }
+
+            if (res.ok) {
+                const data = await res.json();
+                activeCell.innerHTML = `<span class="driver-name">${driver.name}</span>`;
+                activeCell.dataset.assignmentId = data.id;
+                activeCell.dataset.driverId = driver.id;
+                activeCell.dataset.driverName = driver.name;
+                closeDropdown();
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error assigning driver');
+            }
+        } catch (e) {
+            alert('Network error');
+        }
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}

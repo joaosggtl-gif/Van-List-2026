@@ -3,18 +3,26 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h4 class="mb-0">
-            {{ target_date.strftime('%A, %B %d, %Y') }}
-            <span class="badge bg-secondary">Week {{ week_number }}</span>
-        </h4>
-        <small class="text-muted">
-            {{ paired|length }} paired |
-            {{ driver_only|length }} driver-only |
-            {{ assignments|length }} total |
-            {{ total_vans }} active vans |
-            {{ total_drivers }} active drivers
-        </small>
+    <div class="d-flex align-items-center gap-2">
+        <a href="/day/{{ prev_date.isoformat() }}" class="btn btn-outline-secondary btn-sm" title="{{ prev_date.strftime('%A, %B %d') }}">
+            <i class="bi bi-chevron-left"></i>
+        </a>
+        <div>
+            <h4 class="mb-0">
+                {{ target_date.strftime('%A, %B %d, %Y') }}
+                <span class="badge bg-secondary">Week {{ week_number }}</span>
+            </h4>
+            <small class="text-muted">
+                {{ paired|length }} paired |
+                {{ driver_only|length }} driver-only |
+                {{ assignments|length }} total |
+                {{ total_vans }} active vans |
+                {{ total_drivers }} active drivers
+            </small>
+        </div>
+        <a href="/day/{{ next_date.isoformat() }}" class="btn btn-outline-secondary btn-sm" title="{{ next_date.strftime('%A, %B %d') }}">
+            <i class="bi bi-chevron-right"></i>
+        </a>
     </div>
     <div class="d-flex gap-2">
         <a href="/?week={{ week_number }}" class="btn btn-outline-secondary btn-sm">
