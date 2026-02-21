@@ -21,6 +21,11 @@
         <a href="/api/export/weekly?week={{ current_week }}" class="btn btn-success btn-sm">
             <i class="bi bi-download"></i> Export XLSX
         </a>
+        {% if can_edit %}
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadDriversModal">
+            <i class="bi bi-upload"></i> Upload Drivers
+        </button>
+        {% endif %}
     </div>
 </div>
 
@@ -154,6 +159,48 @@
     </div>
 </div>
 {% endif %}
+{% endif %}
+
+{% if can_edit %}
+<div class="modal fade" id="uploadDriversModal" tabindex="-1" aria-labelledby="uploadDriversModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadDriversModalLabel"><i class="bi bi-upload"></i> Upload Drivers</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="uploadDay" class="form-label">Day</label>
+                    <select id="uploadDay" class="form-select">
+                        {% for day in days %}
+                        <option value="{{ day.isoformat() }}" {% if day == today %}selected{% endif %}>
+                            {{ day.strftime('%A %d/%m/%Y') }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="uploadFile" class="form-label">Driver list file</label>
+                    <input type="file" id="uploadFile" class="form-control" accept=".xlsx,.csv">
+                </div>
+                <div id="uploadAlert" style="display:none;"></div>
+                <table id="uploadUnrecognized" class="table table-sm table-bordered mt-2" style="display:none;">
+                    <thead class="table-warning">
+                        <tr><th>Unrecognized Names</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="uploadSubmitBtn">
+                    <i class="bi bi-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 {% endblock %}
@@ -593,6 +640,75 @@
             } catch (e) { alert('Network error'); }
         }
     }
+})();
+
+// --- Upload Drivers modal handler ---
+(function() {
+    const submitBtn = document.getElementById('uploadSubmitBtn');
+    const fileInput = document.getElementById('uploadFile');
+    const daySelect = document.getElementById('uploadDay');
+    const alertDiv = document.getElementById('uploadAlert');
+    const unrecTable = document.getElementById('uploadUnrecognized');
+
+    function showAlert(msg, type) {
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.textContent = msg;
+        alertDiv.style.display = 'block';
+    }
+
+    function resetModal() {
+        alertDiv.style.display = 'none';
+        unrecTable.style.display = 'none';
+        unrecTable.querySelector('tbody').innerHTML = '';
+    }
+
+    document.getElementById('uploadDriversModal').addEventListener('show.bs.modal', resetModal);
+
+    submitBtn.addEventListener('click', async function() {
+        resetModal();
+        const file = fileInput.files[0];
+        if (!file) {
+            showAlert('Please select a file.', 'warning');
+            return;
+        }
+        const date = daySelect.value;
+        const formData = new FormData();
+        formData.append('file', file);
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+
+        try {
+            const res = await fetch(`/api/assignments/bulk-upload-drivers?assignment_date=${date}`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                const count = data.assigned || data.matched || 0;
+                showAlert(`Upload successful! ${count} driver(s) assigned.`, 'success');
+                if (data.unrecognized && data.unrecognized.length > 0) {
+                    const tbody = unrecTable.querySelector('tbody');
+                    data.unrecognized.forEach(name => {
+                        const tr = document.createElement('tr');
+                        const td = document.createElement('td');
+                        td.textContent = name;
+                        tr.appendChild(td);
+                        tbody.appendChild(tr);
+                    });
+                    unrecTable.style.display = 'table';
+                }
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showAlert(data.detail || 'Upload failed.', 'danger');
+            }
+        } catch (e) {
+            showAlert('Network error.', 'danger');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-upload"></i> Upload';
+        }
+    });
 })();
 </script>
 {% endif %}
