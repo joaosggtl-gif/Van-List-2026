@@ -18,9 +18,18 @@
         <a href="/?week={{ current_week + 1 }}" class="btn btn-outline-secondary btn-sm">
             Next <i class="bi bi-chevron-right"></i>
         </a>
-        <a href="/api/export/weekly?week={{ current_week }}" class="btn btn-success btn-sm">
-            <i class="bi bi-download"></i> Export XLSX
-        </a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download"></i> Export XLSX
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                {% for day in days %}
+                <li><a class="dropdown-item" href="/api/export/daily-simple?target_date={{ day.isoformat() }}">{{ day.strftime('%A %d/%m') }}</a></li>
+                {% endfor %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/api/export/weekly?week={{ current_week }}"><i class="bi bi-table"></i> Full Week</a></li>
+            </ul>
+        </div>
         {% if can_edit %}
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadDriversModal">
             <i class="bi bi-upload"></i> Upload Drivers

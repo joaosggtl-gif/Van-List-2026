@@ -97,6 +97,37 @@ def export_daily_xlsx(db: Session, target_date: date) -> bytes:
     return buf.getvalue()
 
 
+def export_daily_simple_xlsx(db: Session, target_date: date) -> bytes:
+    """Export a single day's paired assignments as a simple Van Reg / Driver Name XLSX."""
+    assignments = (
+        db.query(DailyAssignment)
+        .options(joinedload(DailyAssignment.van), joinedload(DailyAssignment.driver))
+        .filter(
+            DailyAssignment.assignment_date == target_date,
+            DailyAssignment.van_id.isnot(None),
+            DailyAssignment.driver_id.isnot(None),
+        )
+        .order_by(DailyAssignment.id)
+        .all()
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = target_date.strftime("%A %d-%m")
+
+    ws.append(["Van Reg", "Driver Name"])
+    _style_header(ws)
+
+    for a in assignments:
+        ws.append([a.van.code, short_name(a.driver.name)])
+
+    _auto_width(ws)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def export_weekly_xlsx(db: Session, week_number: int) -> bytes:
     """Export a full week's assignments to XLSX."""
     days = get_week_days(week_number)
