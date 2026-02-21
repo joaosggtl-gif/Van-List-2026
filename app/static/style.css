@@ -313,3 +313,10 @@ body {
 .cell-driver-item:last-child {
     border-bottom: none;
 }
+
+/* Checkbox inside assignment chips */
+.assignment-chip .driveronly-checkbox {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}

@@ -111,8 +111,18 @@
 
 {% if has_driver_only.val %}
 <div class="card mt-3">
-    <div class="card-header bg-warning bg-opacity-25">
-        <i class="bi bi-person-exclamation"></i> <strong>Drivers without van</strong>
+    <div class="card-header bg-warning bg-opacity-25 d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-person-exclamation"></i> <strong>Drivers without van</strong></span>
+        {% if can_edit %}
+        <span class="d-flex align-items-center gap-2">
+            <label class="form-check-label me-1" style="font-size:0.78rem;">
+                <input type="checkbox" class="form-check-input" onchange="toggleAllDriverOnly(this)"> Select All
+            </label>
+            <button id="btn-remove-driveronly" class="btn btn-danger btn-sm py-0 px-2" style="display:none; font-size:0.75rem;" onclick="removeSelectedDriverOnly()">
+                <i class="bi bi-trash"></i> Remove Selected
+            </button>
+        </span>
+        {% endif %}
     </div>
     <div class="card-body p-2">
         <div class="row">
@@ -123,6 +133,9 @@
                 <small class="fw-bold">{{ day.strftime('%a %d/%m') }}</small>
                 {% for a in unassigned %}
                 <div class="assignment-chip chip-unpaired mb-1 d-flex align-items-center gap-1" data-driveronly-id="{{ a.id }}" data-driveronly-driver-id="{{ a.driver_id }}" data-driveronly-date="{{ day_iso }}">
+                    {% if can_edit %}
+                    <input type="checkbox" class="form-check-input driveronly-checkbox" value="{{ a.id }}" onchange="updateRemoveDriverOnlyBtn()" style="margin:0; flex-shrink:0;">
+                    {% endif %}
                     <small class="flex-grow-1">
                         <i class="bi bi-person"></i>
                         {{ a.driver.name | short_name }}
@@ -641,6 +654,42 @@
         }
     }
 })();
+
+// --- Driver-only: multi-select delete ---
+function toggleAllDriverOnly(source) {
+    document.querySelectorAll('.driveronly-checkbox').forEach(cb => { cb.checked = source.checked; });
+    updateRemoveDriverOnlyBtn();
+}
+
+function updateRemoveDriverOnlyBtn() {
+    const btn = document.getElementById('btn-remove-driveronly');
+    if (!btn) return;
+    const checked = document.querySelectorAll('.driveronly-checkbox:checked').length;
+    btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    btn.innerHTML = `<i class="bi bi-trash"></i> Remove Selected (${checked})`;
+}
+
+async function removeSelectedDriverOnly() {
+    const ids = Array.from(document.querySelectorAll('.driveronly-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Remove ${ids.length} selected driver assignment(s)?`)) return;
+    try {
+        const results = await Promise.all(ids.map(id =>
+            fetch(`/api/assignments/${id}`, { method: 'DELETE' })
+        ));
+        const unauthorized = results.find(r => r.status === 401);
+        if (unauthorized) { window.location.href = '/login'; return; }
+        const forbidden = results.find(r => r.status === 403);
+        if (forbidden) { alert('Permission denied.'); return; }
+        const failed = results.filter(r => !r.ok);
+        if (failed.length > 0) {
+            alert(`${ids.length - failed.length} removed, ${failed.length} failed.`);
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
 
 // --- Upload Drivers modal handler ---
 (function() {
