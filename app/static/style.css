@@ -120,8 +120,9 @@ body {
     position: sticky;
     top: 0;
     z-index: 20;
-    background: #212529;
-    border-color: #495057;
+    background: #4a6fa5;
+    color: #ffffff;
+    border-color: #3d5d8a;
 }
 
 .van-grid-table .col-preassign {
@@ -144,6 +145,19 @@ body {
 
 .van-grid-table thead .col-today {
     background: #0d6efd !important;
+}
+
+/* Zebra striping */
+.van-grid-table tbody tr:nth-child(odd) td {
+    background-color: #f7f8fa;
+}
+
+.van-grid-table tbody tr:nth-child(even) td {
+    background-color: #ffffff;
+}
+
+.van-grid-table tbody tr:nth-child(odd) td.col-today {
+    background-color: rgba(13, 110, 253, 0.08) !important;
 }
 
 /* Cell styles */

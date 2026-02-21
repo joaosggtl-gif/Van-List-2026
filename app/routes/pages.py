@@ -56,6 +56,7 @@ def _ctx(request: Request, user: User, **kwargs):
         "user_role": user.role,
         "is_admin": user.role == "admin",
         "can_edit": ROLE_HIERARCHY.get(user.role, 0) >= ROLE_HIERARCHY["operator"],
+        "today": date.today(),
         **kwargs,
     }
 
