@@ -202,15 +202,23 @@
         }
         activeCell = cell;
 
-        // Position dropdown below the cell
+        // Position dropdown using fixed positioning (viewport coords)
         const rect = cell.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        const dropdownHeight = 280; // approximate height
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const fitsBelow = spaceBelow >= dropdownHeight;
 
         dropdown.style.display = 'block';
-        dropdown.style.top = (rect.bottom + scrollTop) + 'px';
-        dropdown.style.left = (rect.left + scrollLeft) + 'px';
+        dropdown.style.left = rect.left + 'px';
         dropdown.style.width = Math.max(rect.width, 220) + 'px';
+
+        if (fitsBelow) {
+            dropdown.style.top = rect.bottom + 'px';
+            dropdown.style.bottom = 'auto';
+        } else {
+            dropdown.style.bottom = (window.innerHeight - rect.top) + 'px';
+            dropdown.style.top = 'auto';
+        }
 
         searchInput.value = '';
         searchInput.focus();
@@ -412,12 +420,17 @@
                 activePairChip = chip;
 
                 const rect = this.getBoundingClientRect();
-                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                const spaceBelow = window.innerHeight - rect.bottom;
                 vanDropdown.style.display = 'block';
-                vanDropdown.style.top = (rect.bottom + scrollTop) + 'px';
-                vanDropdown.style.left = (rect.left + scrollLeft) + 'px';
+                vanDropdown.style.left = rect.left + 'px';
                 vanDropdown.style.width = '240px';
+                if (spaceBelow >= 280) {
+                    vanDropdown.style.top = rect.bottom + 'px';
+                    vanDropdown.style.bottom = 'auto';
+                } else {
+                    vanDropdown.style.bottom = (window.innerHeight - rect.top) + 'px';
+                    vanDropdown.style.top = 'auto';
+                }
 
                 vanSearchInput.value = '';
                 vanSearchInput.focus();

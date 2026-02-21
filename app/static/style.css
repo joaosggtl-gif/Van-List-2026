@@ -201,7 +201,7 @@ body {
 
 /* Cell autocomplete dropdown */
 .cell-autocomplete-dropdown {
-    position: absolute;
+    position: fixed;
     z-index: 9999;
     background: white;
     border: 1px solid #0d6efd;
