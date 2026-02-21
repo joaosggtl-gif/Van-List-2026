@@ -229,7 +229,7 @@ body {
 }
 
 .cell-inline-list {
-    max-height: 150px;
+    max-height: 110px;
     overflow-y: scroll;
     overflow-x: hidden;
 }
