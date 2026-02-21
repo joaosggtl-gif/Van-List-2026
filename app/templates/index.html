@@ -117,16 +117,19 @@
             <div class="col">
                 <small class="fw-bold">{{ day.strftime('%a %d/%m') }}</small>
                 {% for a in unassigned %}
-                <div class="assignment-chip chip-unpaired mb-1">
-                    <small>
+                <div class="assignment-chip chip-unpaired mb-1 d-flex align-items-center gap-1" data-driveronly-id="{{ a.id }}" data-driveronly-driver-id="{{ a.driver_id }}" data-driveronly-date="{{ day_iso }}">
+                    <small class="flex-grow-1">
                         <i class="bi bi-person"></i>
                         {{ a.driver.name }}
-                        {% if can_edit %}
-                        <a href="/day/{{ day_iso }}" class="text-decoration-none ms-1" title="Edit on daily page">
-                            <i class="bi bi-pencil-square"></i>
-                        </a>
-                        {% endif %}
                     </small>
+                    {% if can_edit %}
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-1 driveronly-pair-btn" title="Assign van" style="font-size:0.65rem; line-height:1;">
+                        <i class="bi bi-truck"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm py-0 px-1 driveronly-delete-btn" title="Remove" style="font-size:0.65rem; line-height:1;">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                    {% endif %}
                 </div>
                 {% endfor %}
                 {% if not unassigned %}
@@ -137,6 +140,20 @@
         </div>
     </div>
 </div>
+
+{# Van pairing dropdown (for driver-only assignments) #}
+{% if can_edit %}
+<div id="vanPairDropdown" class="cell-autocomplete-dropdown" style="display:none;">
+    <input type="text" id="vanPairSearchInput" class="form-control form-control-sm" placeholder="Search van...">
+    <div id="vanPairList" class="cell-driver-list"></div>
+    <hr class="my-1">
+    <div class="d-flex gap-1 p-1">
+        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" id="vanPairCancelBtn">
+            <i class="bi bi-escape"></i> Cancel
+        </button>
+    </div>
+</div>
+{% endif %}
 {% endif %}
 
 {# Autocomplete dropdown (reused for all cells) #}
@@ -333,6 +350,139 @@
             }
         } catch (e) {
             alert('Network error');
+        }
+    }
+
+    // --- Driver-only: delete ---
+    document.querySelectorAll('.driveronly-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.stopPropagation();
+            const chip = this.closest('[data-driveronly-id]');
+            const id = chip.dataset.driveronlyId;
+            if (!confirm('Remove this driver assignment?')) return;
+            try {
+                const res = await fetch(`/api/assignments/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    chip.remove();
+                } else {
+                    const err = await res.json();
+                    alert(err.detail || 'Error removing');
+                }
+            } catch (e) { alert('Network error'); }
+        });
+    });
+
+    // --- Driver-only: pair with van ---
+    const vanDropdown = document.getElementById('vanPairDropdown');
+    const vanSearchInput = document.getElementById('vanPairSearchInput');
+    const vanPairList = document.getElementById('vanPairList');
+    const vanPairCancelBtn = document.getElementById('vanPairCancelBtn');
+    let activePairChip = null;
+    let vanSearchTimeout = null;
+
+    if (vanDropdown) {
+        document.querySelectorAll('.driveronly-pair-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const chip = this.closest('[data-driveronly-id]');
+                if (activePairChip === chip && vanDropdown.style.display !== 'none') {
+                    closeVanDropdown();
+                    return;
+                }
+                activePairChip = chip;
+
+                const rect = this.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                vanDropdown.style.display = 'block';
+                vanDropdown.style.top = (rect.bottom + scrollTop) + 'px';
+                vanDropdown.style.left = (rect.left + scrollLeft) + 'px';
+                vanDropdown.style.width = '240px';
+
+                vanSearchInput.value = '';
+                vanSearchInput.focus();
+                loadVans('');
+            });
+        });
+
+        function closeVanDropdown() {
+            vanDropdown.style.display = 'none';
+            activePairChip = null;
+            vanPairList.innerHTML = '';
+        }
+
+        vanPairCancelBtn.addEventListener('click', closeVanDropdown);
+
+        document.addEventListener('click', function(e) {
+            if (vanDropdown.style.display !== 'none' && !vanDropdown.contains(e.target)) {
+                closeVanDropdown();
+            }
+        });
+
+        vanDropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+
+        vanSearchInput.addEventListener('input', function() {
+            clearTimeout(vanSearchTimeout);
+            vanSearchTimeout = setTimeout(() => loadVans(this.value), 200);
+        });
+
+        vanSearchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeVanDropdown();
+        });
+
+        async function loadVans(query) {
+            if (!activePairChip) return;
+            const dateVal = activePairChip.dataset.driveronlyDate;
+            try {
+                const res = await fetch(`/api/assignments/available-vans?assignment_date=${dateVal}&q=${encodeURIComponent(query)}`);
+                const vans = await res.json();
+                vanPairList.innerHTML = '';
+                if (vans.length === 0) {
+                    vanPairList.innerHTML = '<div class="p-2 text-muted small">No vans available</div>';
+                    return;
+                }
+                vans.forEach(v => {
+                    const item = document.createElement('div');
+                    item.className = 'cell-driver-item';
+                    let label = v.code;
+                    if (v.description) label += ` - ${v.description}`;
+                    if (v.operational_status === 'GROUNDED') {
+                        item.innerHTML = `${label} <span class="badge bg-danger" style="font-size:0.6rem">VOR</span>`;
+                    } else {
+                        item.textContent = label;
+                    }
+                    item.addEventListener('click', () => pairWithVan(v));
+                    vanPairList.appendChild(item);
+                });
+            } catch (e) {
+                vanPairList.innerHTML = '<div class="p-2 text-danger small">Error loading vans</div>';
+            }
+        }
+
+        async function pairWithVan(van) {
+            if (!activePairChip) return;
+            const id = activePairChip.dataset.driveronlyId;
+            const driverId = parseInt(activePairChip.dataset.driveronlyDriverId);
+            const dateVal = activePairChip.dataset.driveronlyDate;
+            try {
+                const res = await fetch(`/api/assignments/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        assignment_date: dateVal,
+                        van_id: van.id,
+                        driver_id: driverId,
+                        notes: null
+                    })
+                });
+                if (res.ok) {
+                    closeVanDropdown();
+                    window.location.reload();
+                } else {
+                    const err = await res.json();
+                    alert(err.detail || 'Error pairing van');
+                }
+            } catch (e) { alert('Network error'); }
         }
     }
 })();
