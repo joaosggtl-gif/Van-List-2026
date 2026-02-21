@@ -9,6 +9,7 @@ from app.auth import get_current_user, require_role
 from app.database import get_db
 from app.models import DailyAssignment, Van, Driver, User, DriverVanPreassignment
 from app.schemas import AssignmentCreate, AssignmentOut, AssignmentPair
+from app.routes.pages import short_name
 from app.services.audit_service import log_action
 from app.services.import_service import import_vans, import_drivers
 
@@ -369,7 +370,7 @@ def available_drivers_for_date(
         query = query.filter(
             (Driver.name.ilike(f"%{q}%")) | (Driver.employee_id.ilike(f"%{q}%"))
         )
-    return [{"id": d.id, "employee_id": d.employee_id, "name": d.name} for d in query.order_by(Driver.name).limit(20).all()]
+    return [{"id": d.id, "employee_id": d.employee_id, "name": d.name, "short_name": short_name(d.name)} for d in query.order_by(Driver.name).limit(20).all()]
 
 
 @router.get("/assignable-drivers-for-van")
@@ -423,6 +424,7 @@ def assignable_drivers_for_van(
             "id": d.id,
             "employee_id": d.employee_id,
             "name": d.name,
+            "short_name": short_name(d.name),
             "existing_assignment_id": existing_map.get(d.id),
         }
         for d in drivers

@@ -116,7 +116,7 @@
                         <tr class="{% if not d.active %}table-secondary{% endif %}">
                             {% if is_admin %}<td><input type="checkbox" class="drv-checkbox" value="{{ d.id }}" onchange="updateDeactivateDrvsBtn()"></td>{% endif %}
                             <td><strong>{{ d.employee_id }}</strong></td>
-                            <td>{{ d.name }}</td>
+                            <td>{{ d.name | short_name }}</td>
                             <td>
                                 {% if d.active %}
                                     <span class="badge bg-success">Active</span>
@@ -175,7 +175,7 @@
                                 {% endif %}
                             </td>
                             {% endif %}
-                            <td>{{ d.name }}</td>
+                            <td>{{ d.name | short_name }}</td>
                             <td style="position:relative;">
                                 {% set pa = preassign_map.get(d.id) %}
                                 {% if pa %}

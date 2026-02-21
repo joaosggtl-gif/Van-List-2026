@@ -19,6 +19,20 @@ router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="app/templates")
 
 
+def short_name(name: str) -> str:
+    """Return first and last name only, stripping middle names and suffixes like '• DRR1'."""
+    if not name:
+        return name or ""
+    name = name.split("•")[0].strip()
+    tokens = name.split()
+    if len(tokens) <= 2:
+        return name
+    return f"{tokens[0]} {tokens[-1]}"
+
+
+templates.env.filters["short_name"] = short_name
+
+
 def _require_auth(request: Request, db: Session) -> User:
     """Check auth for page routes; redirect to login if unauthenticated."""
     user = get_current_user_optional(request, db)
@@ -249,7 +263,7 @@ def lists_page(
     active_drivers = [d for d in drivers if d.active]
 
     # Map van_id -> driver name for showing in autocomplete
-    preassigned_vans = {pa.van_id: pa.driver.name for pa in preassignments}
+    preassigned_vans = {pa.van_id: short_name(pa.driver.name) for pa in preassignments}
 
     return templates.TemplateResponse("lists.html", _ctx(
         request, user,

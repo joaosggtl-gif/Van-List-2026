@@ -171,7 +171,7 @@
                     {% if can_edit %}<td><input type="checkbox" class="paired-checkbox" value="{{ a.id }}" onchange="updateRemovePairedBtn()"></td>{% endif %}
                     <td>{{ loop.index }}</td>
                     <td>{{ a.driver.employee_id }}</td>
-                    <td>{{ a.driver.name }}</td>
+                    <td>{{ a.driver.name | short_name }}</td>
                     <td><strong>{{ a.van.code }}</strong></td>
                     <td>
                         {% if a.van.operational_status == 'OPERATIONAL' %}
@@ -256,7 +256,7 @@
                     {% if can_edit %}<td><input type="checkbox" class="driver-checkbox" value="{{ a.id }}" onchange="updateRemoveSelectedBtn()"></td>{% endif %}
                     <td>{{ loop.index }}</td>
                     <td>{{ a.driver.employee_id }}</td>
-                    <td>{{ a.driver.name }}</td>
+                    <td>{{ a.driver.name | short_name }}</td>
                     <td>{{ a.notes or '' }}</td>
                     <td><small>{{ a.created_at.strftime('%H:%M') }}</small></td>
                     {% if can_edit %}

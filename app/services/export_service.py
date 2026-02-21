@@ -6,6 +6,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import DailyAssignment
+from app.routes.pages import short_name
 from app.services.week_service import get_week_number, get_week_days
 
 
@@ -51,7 +52,7 @@ def _assignment_row(a: DailyAssignment) -> list:
         a.assignment_date.isoformat(),
         get_week_number(a.assignment_date),
         a.driver.employee_id if a.driver else "",
-        a.driver.name if a.driver else "",
+        short_name(a.driver.name) if a.driver else "",
         a.van.code if a.van else "",
         (a.van.description or "") if a.van else "",
         (a.van.operational_status or "") if a.van else "",

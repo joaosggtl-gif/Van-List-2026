@@ -56,7 +56,7 @@
             {% set is_grounded = van.operational_status == 'GROUNDED' %}
             <tr class="{% if is_grounded %}row-grounded{% endif %}">
                 <td class="col-preassign cell-preassign">
-                    {{ preassign_by_van.get(van.id, '') }}
+                    {{ preassign_by_van.get(van.id, '') | short_name }}
                 </td>
                 <td class="col-van cell-van {% if is_grounded %}text-danger{% endif %}">
                     <strong>{{ van.code }}</strong>
@@ -75,13 +75,13 @@
                     {% if assignment %}
                     data-assignment-id="{{ assignment.id }}"
                     data-driver-id="{{ assignment.driver_id or '' }}"
-                    data-driver-name="{{ assignment.driver.name if assignment.driver else '' }}"
+                    data-driver-name="{{ (assignment.driver.name if assignment.driver else '') | short_name }}"
                     {% endif %}
                 >
                     {% if is_grounded and not assignment %}
                         <span class="text-danger fw-bold">VOR</span>
                     {% elif assignment and assignment.driver %}
-                        <span class="driver-name">{{ assignment.driver.name }}</span>
+                        <span class="driver-name">{{ assignment.driver.name | short_name }}</span>
                     {% elif assignment and not assignment.driver %}
                         <span class="text-warning">—</span>
                     {% else %}
@@ -120,7 +120,7 @@
                 <div class="assignment-chip chip-unpaired mb-1 d-flex align-items-center gap-1" data-driveronly-id="{{ a.id }}" data-driveronly-driver-id="{{ a.driver_id }}" data-driveronly-date="{{ day_iso }}">
                     <small class="flex-grow-1">
                         <i class="bi bi-person"></i>
-                        {{ a.driver.name }}
+                        {{ a.driver.name | short_name }}
                     </small>
                     {% if can_edit %}
                     <button class="btn btn-outline-secondary btn-sm py-0 px-1 driveronly-pair-btn" title="Assign van" style="font-size:0.65rem; line-height:1;">
@@ -393,9 +393,9 @@
                 const item = document.createElement('div');
                 item.className = 'cell-inline-item';
                 if (d.existing_assignment_id) {
-                    item.innerHTML = `${d.name} <span class="badge bg-warning text-dark" style="font-size:0.55rem">awaiting van</span>`;
+                    item.innerHTML = `${d.short_name} <span class="badge bg-warning text-dark" style="font-size:0.55rem">awaiting van</span>`;
                 } else {
-                    item.textContent = d.name;
+                    item.textContent = d.short_name;
                 }
                 item.addEventListener('click', () => selectDriver(d));
                 list.appendChild(item);
@@ -439,10 +439,10 @@
                 const dd = activeCell.querySelector('.cell-inline-dropdown');
                 if (dd) dd.remove();
                 activeCell.classList.remove('cell-editing');
-                activeCell.innerHTML = `<span class="driver-name">${driver.name}</span>`;
+                activeCell.innerHTML = `<span class="driver-name">${driver.short_name}</span>`;
                 activeCell.dataset.assignmentId = data.id;
                 activeCell.dataset.driverId = driver.id;
-                activeCell.dataset.driverName = driver.name;
+                activeCell.dataset.driverName = driver.short_name;
                 // Remove from driver-only section if they were there
                 if (driver.existing_assignment_id) {
                     const chip = document.querySelector(`[data-driveronly-id="${driver.existing_assignment_id}"]`);
