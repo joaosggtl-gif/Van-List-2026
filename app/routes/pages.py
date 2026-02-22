@@ -100,11 +100,8 @@ def index(
     week_start, week_end = get_week_dates(week)
     days = get_week_days(week)
 
-    # Load all active vans ordered by code, GROUNDED vans last
-    all_vans = db.query(Van).filter(Van.active == True).order_by(
-        (Van.operational_status == 'GROUNDED').asc(),
-        Van.code
-    ).all()
+    # Load all active vans
+    all_vans = db.query(Van).filter(Van.active == True).all()
 
     # Load preassignments
     preassignments = (
@@ -128,6 +125,14 @@ def index(
         .order_by(DailyAssignment.assignment_date, DailyAssignment.id)
         .all()
     )
+
+    # Sort vans: OPERATIONAL first by code, then GROUNDED with drivers, then GROUNDED without
+    vans_with_drivers = {a.van_id for a in assignments if a.van_id and a.driver_id}
+    all_vans.sort(key=lambda v: (
+        v.operational_status == 'GROUNDED',
+        not (v.id in vans_with_drivers) if v.operational_status == 'GROUNDED' else False,
+        v.code,
+    ))
 
     # Build grid: van_id -> { day_iso -> assignment }
     grid = {}

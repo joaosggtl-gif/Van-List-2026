@@ -83,8 +83,15 @@
                 <td class="col-preassign cell-preassign">
                     {{ preassign_by_van.get(van.id, '') | short_name }}
                 </td>
-                <td class="col-van cell-van {% if is_grounded %}text-danger{% endif %}">
+                <td class="col-van cell-van {% if is_grounded %}text-danger{% endif %}"
+                    data-van-id="{{ van.id }}" data-van-code="{{ van.code }}" data-van-status="{{ van.operational_status or 'OPERATIONAL' }}">
+                    {% if can_edit %}
+                    <span class="van-code-link" style="cursor:pointer">
+                        <strong>{{ van.code }}</strong>
+                    </span>
+                    {% else %}
                     <strong>{{ van.code }}</strong>
+                    {% endif %}
                     {% if is_grounded %}
                     <i class="bi bi-exclamation-triangle-fill text-danger" title="GROUNDED"></i>
                     {% endif %}
@@ -731,6 +738,82 @@
                     alert(err.detail || 'Error pairing van');
                 }
             } catch (e) { alert('Network error'); }
+        }
+    }
+})();
+
+// --- Van column: VOR toggle ---
+(function() {
+    let activeVanDropdown = null;
+
+    function closeVanStatusDropdown() {
+        if (activeVanDropdown) {
+            activeVanDropdown.remove();
+            activeVanDropdown = null;
+        }
+    }
+
+    document.addEventListener('click', function() {
+        closeVanStatusDropdown();
+    });
+
+    document.querySelectorAll('.van-code-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const cell = this.closest('.cell-van');
+            const vanId = cell.dataset.vanId;
+            const vanCode = cell.dataset.vanCode;
+            const status = cell.dataset.vanStatus;
+
+            // If already open on this cell, close it
+            if (activeVanDropdown && activeVanDropdown.parentElement === cell) {
+                closeVanStatusDropdown();
+                return;
+            }
+            closeVanStatusDropdown();
+
+            const dd = document.createElement('div');
+            dd.className = 'cell-inline-dropdown';
+            dd.style.minWidth = '140px';
+            dd.addEventListener('click', e => e.stopPropagation());
+
+            const item = document.createElement('div');
+            item.className = 'cell-inline-item';
+            item.style.fontWeight = '600';
+            item.style.padding = '6px 8px';
+
+            if (status === 'GROUNDED') {
+                item.style.color = '#198754';
+                item.innerHTML = '<i class="bi bi-check-circle-fill"></i> Mark Operational';
+                item.addEventListener('click', () => toggleVanStatus(vanId, 'OPERATIONAL'));
+            } else {
+                item.style.color = '#dc3545';
+                item.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> Mark VOR';
+                item.addEventListener('click', () => toggleVanStatus(vanId, 'GROUNDED'));
+            }
+            dd.appendChild(item);
+
+            cell.style.position = 'relative';
+            cell.appendChild(dd);
+            activeVanDropdown = dd;
+        });
+    });
+
+    async function toggleVanStatus(vanId, newStatus) {
+        try {
+            const res = await fetch(`/api/vans/${vanId}/operational-status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operational_status: newStatus })
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error updating van status');
+            }
+        } catch (e) {
+            alert('Network error');
         }
     }
 })();
