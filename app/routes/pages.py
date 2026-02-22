@@ -100,8 +100,11 @@ def index(
     week_start, week_end = get_week_dates(week)
     days = get_week_days(week)
 
-    # Load all active vans ordered by code
-    all_vans = db.query(Van).filter(Van.active == True).order_by(Van.code).all()
+    # Load all active vans ordered by code, GROUNDED vans last
+    all_vans = db.query(Van).filter(Van.active == True).order_by(
+        (Van.operational_status == 'GROUNDED').asc(),
+        Van.code
+    ).all()
 
     # Load preassignments
     preassignments = (
