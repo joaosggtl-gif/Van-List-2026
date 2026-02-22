@@ -744,12 +744,17 @@
 
 // --- Van column: VOR toggle ---
 (function() {
+    let activeVanCell = null;
     let activeVanDropdown = null;
 
     function closeVanStatusDropdown() {
         if (activeVanDropdown) {
             activeVanDropdown.remove();
             activeVanDropdown = null;
+        }
+        if (activeVanCell) {
+            activeVanCell.classList.remove('cell-editing');
+            activeVanCell = null;
         }
     }
 
@@ -762,25 +767,29 @@
             e.stopPropagation();
             const cell = this.closest('.cell-van');
             const vanId = cell.dataset.vanId;
-            const vanCode = cell.dataset.vanCode;
             const status = cell.dataset.vanStatus;
 
             // If already open on this cell, close it
-            if (activeVanDropdown && activeVanDropdown.parentElement === cell) {
+            if (activeVanCell === cell) {
                 closeVanStatusDropdown();
                 return;
             }
             closeVanStatusDropdown();
 
+            // Add cell-editing class for overflow:visible + position:relative
+            cell.classList.add('cell-editing');
+            activeVanCell = cell;
+
             const dd = document.createElement('div');
             dd.className = 'cell-inline-dropdown';
-            dd.style.minWidth = '140px';
+            dd.style.minWidth = '160px';
             dd.addEventListener('click', e => e.stopPropagation());
 
             const item = document.createElement('div');
             item.className = 'cell-inline-item';
             item.style.fontWeight = '600';
             item.style.padding = '6px 8px';
+            item.style.cursor = 'pointer';
 
             if (status === 'GROUNDED') {
                 item.style.color = '#198754';
@@ -793,7 +802,6 @@
             }
             dd.appendChild(item);
 
-            cell.style.position = 'relative';
             cell.appendChild(dd);
             activeVanDropdown = dd;
         });
