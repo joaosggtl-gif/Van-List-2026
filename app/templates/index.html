@@ -310,14 +310,42 @@
         // Load drivers immediately
         loadDrivers(input, list, '');
 
+        let cellActiveIndex = -1;
+
         // Search on type
         input.addEventListener('input', function() {
             clearTimeout(searchTimeout);
+            cellActiveIndex = -1;
             searchTimeout = setTimeout(() => loadDrivers(input, list, this.value), 200);
         });
 
+        function updateCellActiveItem() {
+            const items = list.querySelectorAll('.cell-inline-item');
+            items.forEach((item, i) => {
+                item.classList.toggle('active', i === cellActiveIndex);
+                if (i === cellActiveIndex) item.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
         input.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeEditor();
+            const items = list.querySelectorAll('.cell-inline-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                cellActiveIndex = Math.min(cellActiveIndex + 1, items.length - 1);
+                updateCellActiveItem();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                cellActiveIndex = Math.max(cellActiveIndex - 1, 0);
+                updateCellActiveItem();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    const idx = cellActiveIndex >= 0 ? cellActiveIndex : 0;
+                    if (items[idx]) items[idx].click();
+                }
+            } else if (e.key === 'Escape') {
+                closeEditor();
+            }
         });
     }
 
@@ -613,13 +641,41 @@
 
         vanDropdown.addEventListener('click', function(e) { e.stopPropagation(); });
 
+        let vanActiveIndex = -1;
+
         vanSearchInput.addEventListener('input', function() {
             clearTimeout(vanSearchTimeout);
+            vanActiveIndex = -1;
             vanSearchTimeout = setTimeout(() => loadVans(this.value), 200);
         });
 
+        function updateVanActiveItem() {
+            const items = vanPairList.querySelectorAll('.cell-driver-item');
+            items.forEach((item, i) => {
+                item.classList.toggle('active', i === vanActiveIndex);
+                if (i === vanActiveIndex) item.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
         vanSearchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeVanDropdown();
+            const items = vanPairList.querySelectorAll('.cell-driver-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                vanActiveIndex = Math.min(vanActiveIndex + 1, items.length - 1);
+                updateVanActiveItem();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                vanActiveIndex = Math.max(vanActiveIndex - 1, 0);
+                updateVanActiveItem();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    const idx = vanActiveIndex >= 0 ? vanActiveIndex : 0;
+                    if (items[idx]) items[idx].click();
+                }
+            } else if (e.key === 'Escape') {
+                closeVanDropdown();
+            }
         });
 
         async function loadVans(query) {

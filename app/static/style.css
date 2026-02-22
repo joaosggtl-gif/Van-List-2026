@@ -256,7 +256,8 @@ body {
     white-space: nowrap;
 }
 
-.cell-inline-item:hover {
+.cell-inline-item:hover,
+.cell-inline-item.active {
     background-color: #e3f2fd;
 }
 
@@ -306,7 +307,8 @@ body {
     border-bottom: 1px solid #f0f0f0;
 }
 
-.cell-driver-item:hover {
+.cell-driver-item:hover,
+.cell-driver-item.active {
     background-color: #e9ecef;
 }
 
