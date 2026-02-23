@@ -80,8 +80,19 @@
             {% set van_grid = grid[van.id] %}
             {% set is_grounded = van.operational_status == 'GROUNDED' %}
             <tr class="{% if is_grounded %}row-grounded{% endif %}">
-                <td class="col-preassign cell-preassign">
-                    {{ preassign_by_van.get(van.id, '') | short_name }}
+                <td class="col-preassign cell-preassign"
+                    data-van-id="{{ van.id }}"
+                    {% if preassign_by_van.get(van.id) %}
+                    data-preassign-id="{{ preassign_by_van[van.id].id }}"
+                    data-preassign-name="{{ preassign_by_van[van.id].name | short_name }}"
+                    {% endif %}>
+                    {% if can_edit %}
+                    <span class="preassign-link" style="cursor:pointer">
+                        {{ (preassign_by_van.get(van.id, {}).get('name', '') | short_name) or '—' }}
+                    </span>
+                    {% else %}
+                    {{ preassign_by_van.get(van.id, {}).get('name', '') | short_name }}
+                    {% endif %}
                 </td>
                 <td class="col-van cell-van {% if is_grounded %}text-danger{% endif %}"
                     data-van-id="{{ van.id }}" data-van-code="{{ van.code }}" data-van-status="{{ van.operational_status or 'OPERATIONAL' }}">
@@ -823,6 +834,178 @@
         } catch (e) {
             alert('Network error');
         }
+    }
+})();
+
+// --- Preassign column: inline driver editor ---
+(function() {
+    let activePreassignCell = null;
+    let activePreassignDropdown = null;
+    let preassignSearchTimeout = null;
+
+    function closePreassignDropdown() {
+        if (activePreassignDropdown) {
+            activePreassignDropdown.remove();
+            activePreassignDropdown = null;
+        }
+        if (activePreassignCell) {
+            activePreassignCell.classList.remove('cell-editing');
+            activePreassignCell = null;
+        }
+    }
+
+    document.addEventListener('click', function() {
+        closePreassignDropdown();
+    });
+
+    document.querySelectorAll('.preassign-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const cell = this.closest('.cell-preassign');
+
+            if (activePreassignCell === cell) {
+                closePreassignDropdown();
+                return;
+            }
+            closePreassignDropdown();
+
+            activePreassignCell = cell;
+            cell.classList.add('cell-editing');
+
+            const dd = document.createElement('div');
+            dd.className = 'cell-inline-dropdown';
+            dd.style.minWidth = '200px';
+            dd.addEventListener('click', e => e.stopPropagation());
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Search driver...';
+            dd.appendChild(input);
+
+            const list = document.createElement('div');
+            list.className = 'cell-inline-list';
+            dd.appendChild(list);
+
+            const actions = document.createElement('div');
+            actions.className = 'cell-inline-actions';
+
+            if (cell.dataset.preassignId) {
+                const clearBtn = document.createElement('button');
+                clearBtn.className = 'btn btn-outline-danger btn-sm py-0 flex-fill';
+                clearBtn.style.fontSize = '0.75rem';
+                clearBtn.innerHTML = '<i class="bi bi-x-lg"></i> Clear';
+                clearBtn.addEventListener('click', () => clearPreassignment());
+                actions.appendChild(clearBtn);
+            }
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-outline-secondary btn-sm py-0';
+            cancelBtn.style.fontSize = '0.75rem';
+            cancelBtn.innerHTML = '<i class="bi bi-escape"></i>';
+            cancelBtn.addEventListener('click', () => closePreassignDropdown());
+            actions.appendChild(cancelBtn);
+
+            dd.appendChild(actions);
+            cell.appendChild(dd);
+            activePreassignDropdown = dd;
+
+            input.focus({ preventScroll: true });
+            loadPreassignDrivers(list, '');
+
+            let paActiveIndex = -1;
+
+            input.addEventListener('input', function() {
+                clearTimeout(preassignSearchTimeout);
+                paActiveIndex = -1;
+                preassignSearchTimeout = setTimeout(() => loadPreassignDrivers(list, this.value), 200);
+            });
+
+            function updatePaActiveItem() {
+                const items = list.querySelectorAll('.cell-inline-item');
+                items.forEach((item, i) => {
+                    item.classList.toggle('active', i === paActiveIndex);
+                    if (i === paActiveIndex) item.scrollIntoView({ block: 'nearest' });
+                });
+            }
+
+            input.addEventListener('keydown', function(e) {
+                const items = list.querySelectorAll('.cell-inline-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    paActiveIndex = Math.min(paActiveIndex + 1, items.length - 1);
+                    updatePaActiveItem();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    paActiveIndex = Math.max(paActiveIndex - 1, 0);
+                    updatePaActiveItem();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (items.length > 0) {
+                        const idx = paActiveIndex >= 0 ? paActiveIndex : 0;
+                        if (items[idx]) items[idx].click();
+                    }
+                } else if (e.key === 'Escape') {
+                    closePreassignDropdown();
+                }
+            });
+        });
+    });
+
+    async function loadPreassignDrivers(list, query) {
+        if (!activePreassignCell) return;
+        try {
+            const res = await fetch(`/api/drivers/search?q=${encodeURIComponent(query)}`);
+            const drivers = await res.json();
+            list.innerHTML = '';
+            if (drivers.length === 0) {
+                list.innerHTML = '<div class="p-2 text-muted" style="font-size:0.78rem">No drivers found</div>';
+                return;
+            }
+            drivers.forEach(d => {
+                const item = document.createElement('div');
+                item.className = 'cell-inline-item';
+                const shortName = d.name.split('•')[0].trim().split(/\s+/);
+                const display = shortName.length <= 2 ? shortName.join(' ') : shortName[0] + ' ' + shortName[shortName.length - 1];
+                item.textContent = display;
+                item.addEventListener('click', () => selectPreassignDriver(d.id, display));
+                list.appendChild(item);
+            });
+        } catch (e) {
+            list.innerHTML = '<div class="p-2 text-danger" style="font-size:0.78rem">Error loading</div>';
+        }
+    }
+
+    async function selectPreassignDriver(driverId, displayName) {
+        if (!activePreassignCell) return;
+        const vanId = parseInt(activePreassignCell.dataset.vanId);
+        try {
+            const res = await fetch('/api/preassignments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ driver_id: driverId, van_id: vanId })
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error setting preassignment');
+            }
+        } catch (e) { alert('Network error'); }
+    }
+
+    async function clearPreassignment() {
+        if (!activePreassignCell) return;
+        const preassignId = activePreassignCell.dataset.preassignId;
+        if (!preassignId) { closePreassignDropdown(); return; }
+        try {
+            const res = await fetch(`/api/preassignments/${preassignId}`, { method: 'DELETE' });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error clearing preassignment');
+            }
+        } catch (e) { alert('Network error'); }
     }
 })();
 

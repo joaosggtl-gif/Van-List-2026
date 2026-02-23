@@ -112,7 +112,10 @@ def index(
         )
         .all()
     )
-    preassign_by_van = {pa.van_id: pa.driver.name for pa in preassignments}
+    preassign_by_van = {
+        pa.van_id: {"name": pa.driver.name, "id": pa.id}
+        for pa in preassignments
+    }
 
     # Load assignments for the week
     assignments = (
