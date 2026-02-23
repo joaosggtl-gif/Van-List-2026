@@ -10,10 +10,6 @@ services:
       - DATABASE_URL=sqlite:///data/vanlist.db
       - JWT_EXPIRE_MINUTES=480
     volumes:
-      - vanlist-data:/app/data
-      - vanlist-backups:/app/backups
+      - ./data:/app/data
+      - ./backups:/app/backups
     restart: unless-stopped
-
-volumes:
-  vanlist-data:
-  vanlist-backups:
