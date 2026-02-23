@@ -79,7 +79,13 @@
                 {% for day in days %}
                 {% set day_iso = day.isoformat() %}
                 {% set cell = van_grid[day_iso] %}
-                <td class="col-day cell-driver">
+                <td class="col-day cell-driver {% if can_edit %}cell-editable-hist{% endif %}"
+                    {% if can_edit %}
+                    data-van-reg="{{ van_reg }}"
+                    data-date="{{ day_iso }}"
+                    data-driver-name="{{ cell.driver_name if cell and cell.driver_name else '' }}"
+                    data-is-vor="{{ 'true' if cell and cell.is_vor else 'false' }}"
+                    {% endif %}>
                     {% if cell and cell.is_vor %}
                         <span class="text-danger fw-bold">VOR</span>
                     {% elif cell and cell.driver_name %}
@@ -312,6 +318,141 @@
 {% endblock %}
 
 {% block scripts %}
+{% if can_edit and is_historical %}
+<script>
+(function() {
+    let activeCell = null;
+
+    document.querySelectorAll('.cell-editable-hist').forEach(cell => {
+        cell.style.cursor = 'pointer';
+        cell.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openHistEditor(this);
+        });
+    });
+
+    function openHistEditor(cell) {
+        if (activeCell === cell) { closeHistEditor(); return; }
+        if (activeCell) closeHistEditor();
+
+        activeCell = cell;
+        cell.classList.add('cell-editing');
+
+        const dd = document.createElement('div');
+        dd.className = 'cell-inline-dropdown';
+        dd.style.minWidth = '180px';
+        dd.addEventListener('click', e => e.stopPropagation());
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Driver name...';
+        input.value = cell.dataset.driverName || '';
+        dd.appendChild(input);
+
+        const actions = document.createElement('div');
+        actions.className = 'cell-inline-actions';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn btn-outline-primary btn-sm py-0 flex-fill';
+        saveBtn.style.fontSize = '0.75rem';
+        saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save';
+        saveBtn.addEventListener('click', () => saveHistCell(input.value.trim(), false));
+        actions.appendChild(saveBtn);
+
+        const vorBtn = document.createElement('button');
+        vorBtn.className = 'btn btn-outline-danger btn-sm py-0';
+        vorBtn.style.fontSize = '0.75rem';
+        vorBtn.innerHTML = 'VOR';
+        vorBtn.addEventListener('click', () => saveHistCell('', true));
+        actions.appendChild(vorBtn);
+
+        const freeBtn = document.createElement('button');
+        freeBtn.className = 'btn btn-outline-success btn-sm py-0';
+        freeBtn.style.fontSize = '0.75rem';
+        freeBtn.innerHTML = 'Free';
+        freeBtn.addEventListener('click', () => saveHistCell('', false));
+        actions.appendChild(freeBtn);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-outline-secondary btn-sm py-0';
+        cancelBtn.style.fontSize = '0.75rem';
+        cancelBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+        cancelBtn.addEventListener('click', () => closeHistEditor());
+        actions.appendChild(cancelBtn);
+
+        dd.appendChild(actions);
+        cell.appendChild(dd);
+
+        input.focus({ preventScroll: true });
+        input.select();
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveHistCell(input.value.trim(), false);
+            } else if (e.key === 'Escape') {
+                closeHistEditor();
+            }
+        });
+    }
+
+    function closeHistEditor() {
+        if (!activeCell) return;
+        const dd = activeCell.querySelector('.cell-inline-dropdown');
+        if (dd) dd.remove();
+        activeCell.classList.remove('cell-editing');
+        activeCell = null;
+    }
+
+    document.addEventListener('click', function() {
+        if (activeCell) closeHistEditor();
+    });
+
+    async function saveHistCell(driverName, isVor) {
+        if (!activeCell) return;
+        const vanReg = activeCell.dataset.vanReg;
+        const dateVal = activeCell.dataset.date;
+
+        try {
+            const res = await fetch('/api/historical-assignments', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    van_reg: vanReg,
+                    assignment_date: dateVal,
+                    driver_name: driverName || null,
+                    is_vor: isVor
+                })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const dd = activeCell.querySelector('.cell-inline-dropdown');
+                if (dd) dd.remove();
+                activeCell.classList.remove('cell-editing');
+
+                if (isVor) {
+                    activeCell.innerHTML = '<span class="text-danger fw-bold">VOR</span>';
+                    activeCell.dataset.driverName = '';
+                    activeCell.dataset.isVor = 'true';
+                } else if (driverName) {
+                    activeCell.innerHTML = '<span class="driver-name">' + driverName.replace(/</g, '&lt;') + '</span>';
+                    activeCell.dataset.driverName = driverName;
+                    activeCell.dataset.isVor = 'false';
+                } else {
+                    activeCell.innerHTML = '<span class="text-muted">Free</span>';
+                    activeCell.dataset.driverName = '';
+                    activeCell.dataset.isVor = 'false';
+                }
+                activeCell = null;
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error saving');
+            }
+        } catch (e) { alert('Network error'); }
+    }
+})();
+</script>
+{% endif %}
 {% if can_edit and not is_historical %}
 <script>
 (function() {
