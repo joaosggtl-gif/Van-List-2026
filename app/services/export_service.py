@@ -1,11 +1,11 @@
 import io
-from datetime import date
+from datetime import date, timedelta
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import DailyAssignment
+from app.models import DailyAssignment, Van
 from app.routes.pages import short_name
 from app.services.week_service import get_week_number, get_week_days
 
@@ -156,6 +156,112 @@ def export_weekly_xlsx(db: Session, week_number: int) -> bytes:
         ws.append(_assignment_row(a))
 
     _auto_width(ws)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+VOR_FONT = Font(bold=True, color="DC3545")
+
+
+def export_period_xlsx(db: Session, start_date: date, end_date: date) -> bytes:
+    """Export a date range as XLSX with one tab per week, matching the weekly grid layout."""
+    # Determine which weeks are spanned
+    start_week = get_week_number(start_date)
+    end_week = get_week_number(end_date)
+
+    # Load all active vans
+    all_vans = db.query(Van).filter(Van.active == True).all()
+
+    # Load all assignments in the date range
+    assignments = (
+        db.query(DailyAssignment)
+        .options(joinedload(DailyAssignment.van), joinedload(DailyAssignment.driver))
+        .filter(
+            DailyAssignment.assignment_date >= start_date,
+            DailyAssignment.assignment_date <= end_date,
+        )
+        .order_by(DailyAssignment.assignment_date, DailyAssignment.id)
+        .all()
+    )
+
+    # Index assignments by (van_id, date_iso)
+    assign_lookup = {}
+    vans_with_drivers = set()
+    for a in assignments:
+        if a.van_id:
+            assign_lookup[(a.van_id, a.assignment_date.isoformat())] = a
+            if a.driver_id:
+                vans_with_drivers.add(a.van_id)
+
+    # Sort vans: OPERATIONAL first by code, then GROUNDED with drivers, then GROUNDED without
+    all_vans.sort(key=lambda v: (
+        v.operational_status == 'GROUNDED',
+        not (v.id in vans_with_drivers) if v.operational_status == 'GROUNDED' else False,
+        v.code,
+    ))
+
+    wb = Workbook()
+    # Remove the default sheet — we'll create our own
+    wb.remove(wb.active)
+
+    for week_num in range(start_week, end_week + 1):
+        days = get_week_days(week_num)
+        week_start = days[0]
+        week_end = days[-1]
+
+        tab_name = f"Week {week_num} ({week_start.strftime('%d-%m')}\u2013{week_end.strftime('%d-%m')})"
+        # Worksheet names max 31 chars
+        if len(tab_name) > 31:
+            tab_name = tab_name[:31]
+
+        ws = wb.create_sheet(title=tab_name)
+
+        # Header row: Van | Sunday (dd/mm) | Monday (dd/mm) | ... | Saturday (dd/mm)
+        headers = ["Van"]
+        for i, day in enumerate(days):
+            headers.append(f"{DAY_NAMES[i]}\n{day.strftime('%d/%m')}")
+        ws.append(headers)
+        _style_header(ws)
+        # Wrap text in header for the date line
+        for cell in ws[1]:
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        # One row per van
+        for van in all_vans:
+            row_data = [van.code]
+            row_cells_vor = []  # track which columns need VOR styling
+            for i, day in enumerate(days):
+                day_iso = day.isoformat()
+                a = assign_lookup.get((van.id, day_iso))
+                if a and a.driver_id and a.driver:
+                    row_data.append(short_name(a.driver.name))
+                    row_cells_vor.append(False)
+                elif a and not a.driver_id:
+                    # Van-only assignment = VOR
+                    row_data.append("VOR")
+                    row_cells_vor.append(True)
+                elif van.operational_status == 'GROUNDED':
+                    # Grounded van with no assignment = VOR
+                    row_data.append("VOR")
+                    row_cells_vor.append(True)
+                else:
+                    row_data.append("")
+                    row_cells_vor.append(False)
+            ws.append(row_data)
+
+            # Apply VOR styling (red bold)
+            current_row = ws.max_row
+            for col_idx, is_vor in enumerate(row_cells_vor):
+                if is_vor:
+                    ws.cell(row=current_row, column=col_idx + 2).font = VOR_FONT
+
+        _auto_width(ws)
+        # Set header row height for wrapped text
+        ws.row_dimensions[1].height = 35
 
     buf = io.BytesIO()
     wb.save(buf)

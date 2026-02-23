@@ -55,6 +55,35 @@
     </div>
 </div>
 
+<!-- Period Export -->
+<div class="card mb-3">
+    <div class="card-header bg-success text-white py-2">
+        <i class="bi bi-download"></i> Download Period Export
+    </div>
+    <div class="card-body">
+        <p class="small text-muted mb-2">
+            Download an XLSX file with one tab per week for the selected date range (max 30 days).
+            Each tab shows a Van &times; Day grid with driver names.
+        </p>
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label for="period-start" class="form-label small mb-0">Start date</label>
+                <input type="date" class="form-control form-control-sm" id="period-start">
+            </div>
+            <div class="col-auto">
+                <label for="period-end" class="form-label small mb-0">End date</label>
+                <input type="date" class="form-control form-control-sm" id="period-end">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-success btn-sm" id="period-download-btn">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Download
+                </button>
+            </div>
+        </div>
+        <div id="period-error" class="text-danger small mt-2" style="display:none;"></div>
+    </div>
+</div>
+
 <!-- File format guide -->
 <div class="card">
     <div class="card-header bg-light py-2">
@@ -135,5 +164,40 @@ function setupUpload(formId, fileId, btnId, resultId, url) {
 
 setupUpload('vans-form', 'vans-file', 'vans-btn', 'vans-result', '/api/upload/vans');
 setupUpload('drivers-form', 'drivers-file', 'drivers-btn', 'drivers-result', '/api/upload/drivers');
+
+// Period export
+document.getElementById('period-download-btn').addEventListener('click', () => {
+    const startInput = document.getElementById('period-start');
+    const endInput = document.getElementById('period-end');
+    const errorDiv = document.getElementById('period-error');
+    errorDiv.style.display = 'none';
+
+    const startVal = startInput.value;
+    const endVal = endInput.value;
+
+    if (!startVal || !endVal) {
+        errorDiv.textContent = 'Please select both start and end dates.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const start = new Date(startVal);
+    const end = new Date(endVal);
+
+    if (start > end) {
+        errorDiv.textContent = 'Start date must be before or equal to end date.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    if (diffDays > 30) {
+        errorDiv.textContent = 'Date range must not exceed 30 days.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    window.location.href = `/api/export/period?start_date=${startVal}&end_date=${endVal}`;
+});
 </script>
 {% endblock %}
