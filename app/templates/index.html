@@ -103,28 +103,33 @@
 
 {% else %}
 {# ===== CURRENT VIEW (editable) ===== #}
-{% if can_edit %}
-<div class="d-flex align-items-center gap-2 mb-1">
-    <label class="form-check-label" style="font-size:0.78rem;">
-        <input type="checkbox" class="form-check-input" id="gridSelectAll" onchange="toggleAllGrid(this)"> Select All
-    </label>
-    <button id="btn-remove-grid" class="btn btn-danger btn-sm py-0 px-2" style="display:none; font-size:0.75rem;" onclick="removeSelectedGrid()">
-        <i class="bi bi-trash"></i> Remove Selected
-    </button>
-</div>
-{% endif %}
-
 <div class="van-grid-wrapper">
     <table class="table table-bordered table-sm van-grid-table mb-0">
         <thead class="sticky-top">
             <tr>
                 <th class="col-preassign">Preassign</th>
-                <th class="col-van">Van</th>
+                <th class="col-van">
+                    Van
+                    {% if can_edit %}
+                    <button id="btn-remove-grid" class="btn btn-danger btn-sm py-0 px-2" style="display:none; font-size:0.7rem; white-space:nowrap;" onclick="removeSelectedGrid()">
+                        <i class="bi bi-trash"></i> Remove (<span id="btn-remove-grid-count">0</span>)
+                    </button>
+                    {% endif %}
+                </th>
                 {% for day in days %}
                 {% set is_today = day == today %}
                 <th class="col-day {% if is_today %}col-today{% endif %}">
                     <div>{{ day.strftime('%A') }}</div>
                     <small>{{ day.strftime('%d/%m') }}</small>
+                    {% if can_edit %}
+                    <div>
+                        <input type="checkbox" class="form-check-input col-select-all"
+                               data-date="{{ day.isoformat() }}"
+                               onchange="toggleColumnGrid(this)"
+                               style="margin-top:2px; cursor:pointer;"
+                               title="Select all {{ day.strftime('%A') }}">
+                    </div>
+                    {% endif %}
                 </th>
                 {% endfor %}
             </tr>
@@ -1202,8 +1207,11 @@
 })();
 
 // --- Grid: multi-select delete ---
-function toggleAllGrid(source) {
-    document.querySelectorAll('.grid-checkbox').forEach(cb => { cb.checked = source.checked; });
+function toggleColumnGrid(source) {
+    const date = source.dataset.date;
+    document.querySelectorAll(`.cell-editable[data-date="${date}"] .grid-checkbox`).forEach(cb => {
+        cb.checked = source.checked;
+    });
     updateRemoveGridBtn();
 }
 
@@ -1212,7 +1220,17 @@ function updateRemoveGridBtn() {
     if (!btn) return;
     const checked = document.querySelectorAll('.grid-checkbox:checked').length;
     btn.style.display = checked > 0 ? 'inline-block' : 'none';
-    btn.innerHTML = `<i class="bi bi-trash"></i> Remove Selected (${checked})`;
+    const countSpan = document.getElementById('btn-remove-grid-count');
+    if (countSpan) countSpan.textContent = checked;
+
+    // Sync column select-all checkboxes
+    document.querySelectorAll('.col-select-all').forEach(colCb => {
+        const date = colCb.dataset.date;
+        const allInCol = document.querySelectorAll(`.cell-editable[data-date="${date}"] .grid-checkbox`);
+        const checkedInCol = document.querySelectorAll(`.cell-editable[data-date="${date}"] .grid-checkbox:checked`);
+        colCb.checked = allInCol.length > 0 && allInCol.length === checkedInCol.length;
+        colCb.indeterminate = checkedInCol.length > 0 && checkedInCol.length < allInCol.length;
+    });
 }
 
 async function removeSelectedGrid() {
