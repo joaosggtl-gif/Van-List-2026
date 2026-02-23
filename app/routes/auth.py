@@ -6,7 +6,7 @@ from app.auth import (
 )
 from app.database import get_db
 from app.models import User
-from app.schemas import LoginRequest, UserCreate, UserOut, UserUpdate
+from app.schemas import ChangePasswordRequest, LoginRequest, UserCreate, UserOut, UserUpdate
 from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -43,6 +43,23 @@ def login(data: LoginRequest, response: Response, db: Session = Depends(get_db))
 def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Logged out"}
+
+
+@router.put("/change-password")
+def change_password(
+    data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not verify_password(data.old_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    user.hashed_password = hash_password(data.new_password)
+    log_action(db, user, "change_password", "user", user.id, "User changed their own password")
+    db.commit()
+    return {"message": "Password changed successfully"}
 
 
 @router.get("/me", response_model=UserOut)
