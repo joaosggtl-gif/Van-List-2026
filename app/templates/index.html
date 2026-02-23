@@ -7,17 +7,21 @@
         <h4 class="mb-0">
             Week {{ current_week }}
             <small class="text-muted">{{ week_start.strftime('%b %d') }} - {{ week_end.strftime('%b %d, %Y') }}</small>
+            {% if is_historical %}
+            <span class="badge bg-info">Historical</span>
+            {% endif %}
         </h4>
-        <small class="text-muted">{{ total_vans }} active vans | {{ total_drivers }} active drivers</small>
+        <small class="text-muted">{{ total_vans }} vans{% if not is_historical %} | {{ total_drivers }} active drivers{% endif %}</small>
     </div>
     <div class="d-flex gap-2 align-items-center">
-        <a href="/?week={{ current_week - 1 }}" class="btn btn-outline-secondary btn-sm" {% if current_week <= 1 %}disabled{% endif %}>
+        <a href="/?week={{ current_week - 1 }}" class="btn btn-outline-secondary btn-sm" {% if current_week <= min_week %}disabled{% endif %}>
             <i class="bi bi-chevron-left"></i> Prev
         </a>
         <a href="/" class="btn btn-outline-primary btn-sm">Today</a>
         <a href="/?week={{ current_week + 1 }}" class="btn btn-outline-secondary btn-sm">
             Next <i class="bi bi-chevron-right"></i>
         </a>
+        {% if not is_historical %}
         <div class="btn-group">
             <button type="button" class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-download"></i> Export XLSX
@@ -35,6 +39,7 @@
             <i class="bi bi-upload"></i> Upload Drivers
         </button>
         {% endif %}
+        {% endif %}
     </div>
 </div>
 
@@ -49,6 +54,49 @@
     {% endfor %}
 </div>
 
+{% if is_historical %}
+{# ===== HISTORICAL VIEW (read-only) ===== #}
+<div class="van-grid-wrapper">
+    <table class="table table-bordered table-sm van-grid-table mb-0">
+        <thead class="sticky-top">
+            <tr>
+                <th class="col-van">Van</th>
+                {% for day in days %}
+                <th class="col-day">
+                    <div>{{ day.strftime('%A') }}</div>
+                    <small>{{ day.strftime('%d/%m') }}</small>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for van_reg in hist_van_regs %}
+            {% set van_grid = hist_grid[van_reg] %}
+            <tr>
+                <td class="col-van">
+                    <strong>{{ van_reg }}</strong>
+                </td>
+                {% for day in days %}
+                {% set day_iso = day.isoformat() %}
+                {% set cell = van_grid[day_iso] %}
+                <td class="col-day cell-driver">
+                    {% if cell and cell.is_vor %}
+                        <span class="text-danger fw-bold">VOR</span>
+                    {% elif cell and cell.driver_name %}
+                        <span class="driver-name">{{ cell.driver_name }}</span>
+                    {% else %}
+                        <span class="text-muted">Free</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+{# ===== CURRENT VIEW (editable) ===== #}
 {% if can_edit %}
 <div class="d-flex align-items-center gap-2 mb-1">
     <label class="form-check-label" style="font-size:0.78rem;">
@@ -140,7 +188,9 @@
         </tbody>
     </table>
 </div>
+{% endif %}
 
+{% if not is_historical %}
 {# Driver-only assignments (not assigned to any van) #}
 {% set has_driver_only = namespace(val=false) %}
 {% for day in days %}
@@ -257,11 +307,12 @@
     </div>
 </div>
 {% endif %}
+{% endif %}{# end not is_historical #}
 
 {% endblock %}
 
 {% block scripts %}
-{% if can_edit %}
+{% if can_edit and not is_historical %}
 <script>
 (function() {
     let activeCell = null;

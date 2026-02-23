@@ -11,10 +11,9 @@ def get_week_number(d: date) -> int:
 
     Week 1 = 2025-12-28 to 2026-01-03
     Week N = floor((d - base) / 7) + 1
+    Negative weeks are allowed for historical data before WEEK_BASE.
     """
     delta = (d - WEEK_BASE).days
-    if delta < 0:
-        return 0  # before system start
     return delta // 7 + 1
 
 

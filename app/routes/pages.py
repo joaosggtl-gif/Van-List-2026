@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user_optional, ROLE_HIERARCHY
 from app.database import get_db
-from app.models import DailyAssignment, Van, Driver, User, AuditLog, DriverVanPreassignment
+from app.models import DailyAssignment, Van, Driver, User, AuditLog, DriverVanPreassignment, HistoricalAssignment
 from app.services.week_service import (
     get_current_week_number,
     get_week_dates,
@@ -84,6 +84,12 @@ def login_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("login.html", {"request": request})
 
 
+# Last date covered by historical data (XLSX Week 7 Saturday)
+HISTORICAL_CUTOFF = date(2026, 2, 21)
+# Earliest week with historical data (app week for XLSX Week 47)
+HISTORICAL_MIN_WEEK = get_week_number(date(2025, 11, 16))  # -5
+
+
 @router.get("/")
 def index(
     request: Request,
@@ -100,6 +106,77 @@ def index(
     week_start, week_end = get_week_dates(week)
     days = get_week_days(week)
 
+    # Check if this is a historical week (all days <= cutoff)
+    is_historical = week_end <= HISTORICAL_CUTOFF
+
+    if is_historical:
+        return _render_historical_week(request, user, week, week_start, week_end, days, db)
+    else:
+        return _render_current_week(request, user, week, week_start, week_end, days, db)
+
+
+def _render_historical_week(request, user, week, week_start, week_end, days, db):
+    """Render weekly view with historical data (read-only)."""
+    hist_assignments = (
+        db.query(HistoricalAssignment)
+        .filter(
+            HistoricalAssignment.assignment_date >= week_start,
+            HistoricalAssignment.assignment_date <= week_end,
+        )
+        .order_by(HistoricalAssignment.van_reg, HistoricalAssignment.assignment_date)
+        .all()
+    )
+
+    # Build unique van list from historical data (sorted by reg)
+    van_regs = sorted(set(a.van_reg for a in hist_assignments))
+
+    # Build grid: van_reg -> { day_iso -> { driver_name, is_vor } }
+    grid = {}
+    for van_reg in van_regs:
+        grid[van_reg] = {}
+        for day in days:
+            grid[van_reg][day.isoformat()] = None
+
+    for a in hist_assignments:
+        day_iso = a.assignment_date.isoformat()
+        if a.van_reg in grid:
+            grid[a.van_reg][day_iso] = {
+                "driver_name": a.driver_name,
+                "is_vor": a.is_vor,
+            }
+
+    # Count stats
+    counts_by_date = {}
+    for d in days:
+        day_iso = d.isoformat()
+        paired = 0
+        total = 0
+        for a in hist_assignments:
+            if a.assignment_date == d:
+                total += 1
+                if a.driver_name:
+                    paired += 1
+        counts_by_date[day_iso] = {"paired": paired, "total": total}
+
+    return templates.TemplateResponse("index.html", _ctx(
+        request, user,
+        current_week=week,
+        week_start=week_start,
+        week_end=week_end,
+        days=days,
+        is_historical=True,
+        hist_van_regs=van_regs,
+        hist_grid=grid,
+        counts_by_date=counts_by_date,
+        total_vans=len(van_regs),
+        total_drivers=0,
+        min_week=HISTORICAL_MIN_WEEK,
+        today=date.today(),
+    ))
+
+
+def _render_current_week(request, user, week, week_start, week_end, days, db):
+    """Render weekly view with live data (editable)."""
     # Load all active vans
     all_vans = db.query(Van).filter(Van.active == True).all()
 
@@ -176,6 +253,7 @@ def index(
         week_start=week_start,
         week_end=week_end,
         days=days,
+        is_historical=False,
         all_vans=all_vans,
         grid=grid,
         preassign_by_van=preassign_by_van,
@@ -183,6 +261,7 @@ def index(
         counts_by_date=counts_by_date,
         total_vans=total_vans,
         total_drivers=total_drivers,
+        min_week=HISTORICAL_MIN_WEEK,
         today=date.today(),
     ))
 

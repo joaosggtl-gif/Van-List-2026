@@ -124,6 +124,26 @@ class DriverVanPreassignment(Base):
         return f"<DriverVanPreassignment driver={self.driver_id} van={self.van_id}>"
 
 
+class HistoricalAssignment(Base):
+    """Historical van-driver assignments imported from spreadsheet.
+    Uses text fields (no FK to vans/drivers) to preserve exact original data."""
+    __tablename__ = "historical_assignments"
+    __table_args__ = (
+        UniqueConstraint("assignment_date", "van_reg", name="uq_hist_date_van"),
+        Index("ix_hist_date", "assignment_date"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    assignment_date = Column(Date, nullable=False)
+    van_reg = Column(String(50), nullable=False)
+    driver_name = Column(String(200), nullable=True)  # null if Free/empty
+    is_vor = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<HistoricalAssignment {self.assignment_date}: {self.van_reg} -> {self.driver_name}>"
+
+
 class ImportLog(Base):
     __tablename__ = "import_logs"
 
