@@ -200,6 +200,15 @@ body {
     font-weight: 500;
 }
 
+/* Cell status background colours */
+.cell-vor {
+    background-color: #f8d7da !important;
+}
+
+.cell-free {
+    background-color: #d1e7dd !important;
+}
+
 /* Grounded van row */
 .row-grounded {
     background-color: #fff5f5;

@@ -79,7 +79,7 @@
                 {% for day in days %}
                 {% set day_iso = day.isoformat() %}
                 {% set cell = van_grid[day_iso] %}
-                <td class="col-day cell-driver {% if can_edit %}cell-editable-hist{% endif %}"
+                <td class="col-day cell-driver {% if can_edit %}cell-editable-hist{% endif %} {% if cell and cell.is_vor %}cell-vor{% elif not cell or not cell.driver_name %}cell-free{% endif %}"
                     {% if can_edit %}
                     data-van-reg="{{ van_reg }}"
                     data-date="{{ day_iso }}"
@@ -170,7 +170,7 @@
                 {% set day_iso = day.isoformat() %}
                 {% set assignment = van_grid[day_iso] %}
                 {% set is_today = day == today %}
-                <td class="col-day cell-driver {% if is_today %}col-today{% endif %} {% if can_edit %}cell-editable{% endif %}"
+                <td class="col-day cell-driver {% if is_today %}col-today{% endif %} {% if can_edit %}cell-editable{% endif %} {% if is_grounded and not assignment %}cell-vor{% elif not assignment or not assignment.driver %}cell-free{% endif %}"
                     data-van-id="{{ van.id }}"
                     data-van-code="{{ van.code }}"
                     data-date="{{ day_iso }}"
@@ -435,8 +435,10 @@
                 if (dd) dd.remove();
                 activeCell.classList.remove('cell-editing');
 
+                activeCell.classList.remove('cell-vor', 'cell-free');
                 if (isVor) {
                     activeCell.innerHTML = '<span class="text-danger fw-bold">VOR</span>';
+                    activeCell.classList.add('cell-vor');
                     activeCell.dataset.driverName = '';
                     activeCell.dataset.isVor = 'true';
                 } else if (driverName) {
@@ -445,6 +447,7 @@
                     activeCell.dataset.isVor = 'false';
                 } else {
                     activeCell.innerHTML = '<span class="text-muted">Free</span>';
+                    activeCell.classList.add('cell-free');
                     activeCell.dataset.driverName = '';
                     activeCell.dataset.isVor = 'false';
                 }
@@ -588,7 +591,8 @@
             if (res.ok) {
                 const dd = activeCell.querySelector('.cell-inline-dropdown');
                 if (dd) dd.remove();
-                activeCell.classList.remove('cell-editing');
+                activeCell.classList.remove('cell-editing', 'cell-vor');
+                activeCell.classList.add('cell-free');
                 activeCell.innerHTML = '<span class="text-muted">Free</span>';
                 delete activeCell.dataset.assignmentId;
                 delete activeCell.dataset.driverId;
@@ -628,7 +632,8 @@
                 const data = await res.json();
                 const dd = activeCell.querySelector('.cell-inline-dropdown');
                 if (dd) dd.remove();
-                activeCell.classList.remove('cell-editing');
+                activeCell.classList.remove('cell-editing', 'cell-free');
+                activeCell.classList.add('cell-vor');
                 activeCell.innerHTML = '<span class="text-danger fw-bold">VOR</span>';
                 activeCell.dataset.assignmentId = data.id;
                 delete activeCell.dataset.driverId;
@@ -765,7 +770,7 @@
                 // Remove dropdown, update cell
                 const dd = activeCell.querySelector('.cell-inline-dropdown');
                 if (dd) dd.remove();
-                activeCell.classList.remove('cell-editing');
+                activeCell.classList.remove('cell-editing', 'cell-vor', 'cell-free');
                 activeCell.innerHTML = `<span class="driver-name">${driver.short_name}</span>`;
                 activeCell.dataset.assignmentId = data.id;
                 activeCell.dataset.driverId = driver.id;

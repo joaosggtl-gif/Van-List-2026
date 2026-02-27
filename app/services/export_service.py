@@ -97,19 +97,50 @@ def export_daily_xlsx(db: Session, target_date: date) -> bytes:
     return buf.getvalue()
 
 
+FREE_FILL = PatternFill(start_color="D1E7DD", end_color="D1E7DD", fill_type="solid")
+FREE_FONT = Font(color="0F5132")
+VOR_FILL = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+
+
 def export_daily_simple_xlsx(db: Session, target_date: date) -> bytes:
-    """Export a single day's paired assignments as a simple Van Reg / Driver Name XLSX."""
+    """Export a single day's van list as a simple Van Reg / Driver Name XLSX.
+
+    Order: assigned vans first, then Free vans, then VOR vans at the bottom.
+    """
+    # All active vans
+    all_vans = db.query(Van).filter(Van.active == True).order_by(Van.code).all()
+
+    # Assignments for the target date (van-based)
     assignments = (
         db.query(DailyAssignment)
         .options(joinedload(DailyAssignment.van), joinedload(DailyAssignment.driver))
         .filter(
             DailyAssignment.assignment_date == target_date,
             DailyAssignment.van_id.isnot(None),
-            DailyAssignment.driver_id.isnot(None),
         )
-        .order_by(DailyAssignment.id)
         .all()
     )
+
+    # Index assignments by van_id
+    assign_by_van = {}
+    for a in assignments:
+        assign_by_van[a.van_id] = a
+
+    # Categorise vans
+    assigned_rows = []
+    free_rows = []
+    vor_rows = []
+
+    for van in all_vans:
+        a = assign_by_van.get(van.id)
+        if a and a.driver_id and a.driver:
+            assigned_rows.append((van.code, short_name(a.driver.name), "assigned"))
+        elif a and not a.driver_id:
+            vor_rows.append((van.code, "VOR", "vor"))
+        elif van.operational_status == "GROUNDED":
+            vor_rows.append((van.code, "VOR", "vor"))
+        else:
+            free_rows.append((van.code, "Free", "free"))
 
     wb = Workbook()
     ws = wb.active
@@ -118,8 +149,19 @@ def export_daily_simple_xlsx(db: Session, target_date: date) -> bytes:
     ws.append(["Van Reg", "Driver Name"])
     _style_header(ws)
 
-    for a in assignments:
-        ws.append([a.van.code, short_name(a.driver.name)])
+    for code, driver, status in assigned_rows + free_rows + vor_rows:
+        ws.append([code, driver])
+        row_num = ws.max_row
+        if status == "free":
+            for col in (1, 2):
+                cell = ws.cell(row=row_num, column=col)
+                cell.fill = FREE_FILL
+                cell.font = FREE_FONT
+        elif status == "vor":
+            for col in (1, 2):
+                cell = ws.cell(row=row_num, column=col)
+                cell.fill = VOR_FILL
+                cell.font = VOR_FONT
 
     _auto_width(ws)
 
