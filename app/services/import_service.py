@@ -5,8 +5,9 @@ from datetime import datetime
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from app.models import Van, Driver, ImportLog
+from app.models import Van, Driver, ImportLog, DailyAssignment
 from app.schemas import ImportResult
+from app.services.week_service import get_current_week_number, get_week_dates
 
 
 def _read_file(content: bytes, filename: str) -> pd.DataFrame:
@@ -105,11 +106,22 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
         db.add(van)
         imported += 1
 
-    # Deactivate vans not present in the uploaded file
+    # Deactivate vans not present in the uploaded file,
+    # but protect vans that have assignments during the current week
     removed = 0
     if uploaded_codes:
+        week_num = get_current_week_number()
+        week_start, week_end = get_week_dates(week_num)
+
         stale_vans = db.query(Van).filter(Van.active == True, Van.code.notin_(uploaded_codes)).all()
         for v in stale_vans:
+            has_assignments = db.query(DailyAssignment).filter(
+                DailyAssignment.van_id == v.id,
+                DailyAssignment.assignment_date >= week_start,
+                DailyAssignment.assignment_date <= week_end,
+            ).first() is not None
+            if has_assignments:
+                continue  # keep active — van is in use this week
             v.active = False
             v.updated_at = datetime.utcnow()
             removed += 1
@@ -282,11 +294,22 @@ def import_drivers(db: Session, content: bytes, filename: str, uploaded_by: str 
         db.add(driver)
         imported += 1
 
-    # Deactivate drivers not present in the uploaded file
+    # Deactivate drivers not present in the uploaded file,
+    # but protect drivers that have assignments during the current week
     removed = 0
     if uploaded_ids:
+        week_num = get_current_week_number()
+        week_start, week_end = get_week_dates(week_num)
+
         stale_drivers = db.query(Driver).filter(Driver.active == True, Driver.employee_id.notin_(uploaded_ids)).all()
         for d in stale_drivers:
+            has_assignments = db.query(DailyAssignment).filter(
+                DailyAssignment.driver_id == d.id,
+                DailyAssignment.assignment_date >= week_start,
+                DailyAssignment.assignment_date <= week_end,
+            ).first() is not None
+            if has_assignments:
+                continue  # keep active — driver is in use this week
             d.active = False
             d.updated_at = datetime.utcnow()
             removed += 1
