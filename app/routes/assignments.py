@@ -25,18 +25,6 @@ def _load_assignment(db: Session, assignment_id: int) -> DailyAssignment:
     )
 
 
-def _activate_van_if_grounded(db: Session, van_id: int, user: User):
-    """Set van to OPERATIONAL if currently GROUNDED (assigned to a driver = back on road)."""
-    if van_id is None:
-        return
-    van = db.query(Van).filter(Van.id == van_id).first()
-    if van and van.operational_status == 'GROUNDED':
-        van.operational_status = 'OPERATIONAL'
-        log_action(
-            db, user, "update", "van", van.id,
-            f"Auto-activated van '{van.code}': GROUNDED -> OPERATIONAL (driver assigned)",
-        )
-
 
 @router.get("", response_model=list[AssignmentOut])
 def list_assignments(
@@ -139,12 +127,12 @@ def create_assignment(
                 .first()
             )
             if not van_conflict:
-                assignment.van_id = preassign.van_id
-                van = db.query(Van).filter(Van.id == preassign.van_id).first()
-                db.flush()
-
-    if assignment.van_id is not None and assignment.driver_id is not None:
-        _activate_van_if_grounded(db, assignment.van_id, user)
+                preassigned_van = db.query(Van).filter(Van.id == preassign.van_id).first()
+                # Skip if the van is GROUNDED (VOR) — driver goes to "without van" list
+                if preassigned_van and preassigned_van.operational_status != 'GROUNDED':
+                    assignment.van_id = preassign.van_id
+                    van = preassigned_van
+                    db.flush()
 
     van_label = f"van '{van.code}'" if van else "no van"
     driver_label = f"driver '{short_name(driver.name)}'" if driver else "no driver"
@@ -213,9 +201,6 @@ def update_assignment(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Conflict: duplicate assignment")
-
-    if data.van_id is not None and data.driver_id is not None:
-        _activate_van_if_grounded(db, data.van_id, user)
 
     log_action(db, user, "update", "assignment", assignment.id, f"Updated assignment on {data.assignment_date}")
     db.commit()
@@ -287,8 +272,6 @@ def pair_assignments(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Conflict when pairing assignments")
-
-    _activate_van_if_grounded(db, target_van_id, user)
 
     log_action(
         db, user, "update", "assignment", driver_asgn.id,
@@ -537,18 +520,19 @@ async def bulk_upload_drivers(
             skipped_assign += 1
             continue
         van_id = None
-        preassigned_van = preassign_map.get(drv.id)
-        if preassigned_van and preassigned_van not in existing_van_ids:
-            van_id = preassigned_van
-            existing_van_ids.add(van_id)
+        preassigned_van_id = preassign_map.get(drv.id)
+        if preassigned_van_id and preassigned_van_id not in existing_van_ids:
+            # Skip if the van is GROUNDED (VOR) — driver goes to "without van" list
+            pvan = db.query(Van).filter(Van.id == preassigned_van_id).first()
+            if pvan and pvan.operational_status != 'GROUNDED':
+                van_id = preassigned_van_id
+                existing_van_ids.add(van_id)
         asgn = DailyAssignment(
             assignment_date=assignment_date,
             driver_id=drv.id,
             van_id=van_id,
         )
         db.add(asgn)
-        if van_id is not None:
-            _activate_van_if_grounded(db, van_id, user)
         created += 1
 
     db.commit()
@@ -676,10 +660,13 @@ def _bulk_assign_by_name(db: Session, user: User, assignment_date: date, names: 
             continue
 
         van_id = None
-        preassigned_van = preassign_map.get(drv.id)
-        if preassigned_van and preassigned_van not in existing_van_ids:
-            van_id = preassigned_van
-            existing_van_ids.add(van_id)
+        preassigned_van_id = preassign_map.get(drv.id)
+        if preassigned_van_id and preassigned_van_id not in existing_van_ids:
+            # Skip if the van is GROUNDED (VOR) — driver goes to "without van" list
+            pvan = db.query(Van).filter(Van.id == preassigned_van_id).first()
+            if pvan and pvan.operational_status != 'GROUNDED':
+                van_id = preassigned_van_id
+                existing_van_ids.add(van_id)
 
         asgn = DailyAssignment(
             assignment_date=assignment_date,
@@ -687,8 +674,6 @@ def _bulk_assign_by_name(db: Session, user: User, assignment_date: date, names: 
             van_id=van_id,
         )
         db.add(asgn)
-        if van_id is not None:
-            _activate_van_if_grounded(db, van_id, user)
         existing_ids.add(drv.id)
         created += 1
 

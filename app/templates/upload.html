@@ -134,7 +134,7 @@ function setupUpload(formId, fileId, btnId, resultId, url) {
         resultDiv.innerHTML = '';
 
         try {
-            const resp = await fetch(url, { method: 'POST', body: formData });
+            const resp = await fetch(url, { method: 'POST', body: formData, headers: { 'ngrok-skip-browser-warning': '1' } });
             const data = await resp.json();
 
             if (!resp.ok) {
