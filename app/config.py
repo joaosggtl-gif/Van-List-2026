@@ -11,6 +11,9 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     f"sqlite:///{DATA_DIR / 'vanlist.db'}"
 )
+# Render (and some other hosts) provide postgres:// URLs; SQLAlchemy 1.4+ requires postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Week calculation base date: Sunday, December 28, 2025
 WEEK_BASE_DATE_ISO = "2025-12-28"
@@ -18,8 +21,4 @@ WEEK_BASE_DATE_ISO = "2025-12-28"
 # JWT / Auth
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-a-random-64-char-string")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))  # 8 hours
-
-# Default admin account (created on first startup)
-DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
-DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES",
