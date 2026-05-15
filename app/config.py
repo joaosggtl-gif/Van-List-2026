@@ -21,4 +21,8 @@ WEEK_BASE_DATE_ISO = "2025-12-28"
 # JWT / Auth
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-a-random-64-char-string")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES",
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))  # 8 hours
+
+# Default admin account (created on first startup)
+DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
