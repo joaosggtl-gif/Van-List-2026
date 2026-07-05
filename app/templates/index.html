@@ -115,6 +115,10 @@
                         <i class="bi bi-trash"></i> Remove (<span id="btn-remove-grid-count">0</span>)
                     </button>
                     {% endif %}
+                    <div class="mt-1">
+                        <input type="text" id="van-reg-filter" placeholder="Filter REG..." autocomplete="off"
+                               style="width:100%; font-size:0.7rem; padding:1px 4px; border:1px solid #ccc; border-radius:3px;">
+                    </div>
                 </th>
                 {% for day in days %}
                 {% set is_today = day == today %}
@@ -138,7 +142,7 @@
             {% for van in all_vans %}
             {% set van_grid = grid[van.id] %}
             {% set is_grounded = van.operational_status == 'GROUNDED' %}
-            <tr class="{% if is_grounded %}row-grounded{% endif %}">
+            <tr class="{% if is_grounded %}row-grounded{% endif %}" data-van-code="{{ van.code }}">
                 <td class="col-preassign cell-preassign"
                     data-van-id="{{ van.id }}"
                     {% if preassign_by_van.get(van.id) %}
@@ -1391,6 +1395,23 @@ async function removeSelectedDriverOnly() {
             submitBtn.innerHTML = '<i class="bi bi-upload"></i> Upload';
         }
     });
+})();
+</script>
+{% endif %}
+{% if not is_historical %}
+<script>
+(function() {
+    const filterInput = document.getElementById('van-reg-filter');
+    if (!filterInput) return;
+    filterInput.addEventListener('input', function() {
+        const q = this.value.trim().toLowerCase();
+        document.querySelectorAll('.van-grid-table tbody tr[data-van-code]').forEach(row => {
+            const code = row.dataset.vanCode.toLowerCase();
+            row.style.display = (!q || code.includes(q)) ? '' : 'none';
+        });
+    });
+    // Don't let filter input trigger cell-click events on the header
+    filterInput.addEventListener('click', e => e.stopPropagation());
 })();
 </script>
 {% endif %}
