@@ -46,6 +46,7 @@ class VanOut(BaseModel):
     code: str
     description: Optional[str] = None
     operational_status: Optional[str] = None
+    ownership_type: Optional[str] = None
     active: bool
 
 

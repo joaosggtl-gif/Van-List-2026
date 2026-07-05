@@ -165,6 +165,9 @@
                     {% if is_grounded %}
                     <i class="bi bi-exclamation-triangle-fill text-danger" title="GROUNDED"></i>
                     {% endif %}
+                    {% if van.ownership_type %}
+                    <br><span class="badge {% if van.ownership_type == 'Prime' %}bg-primary{% else %}bg-warning text-dark{% endif %}" style="font-size:0.6rem;">{{ van.ownership_type }}</span>
+                    {% endif %}
                 </td>
                 {% for day in days %}
                 {% set day_iso = day.isoformat() %}

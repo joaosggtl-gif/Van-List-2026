@@ -20,6 +20,17 @@ def _read_file(content: bytes, filename: str) -> pd.DataFrame:
         raise ValueError(f"Unsupported file format: {filename}. Use .csv or .xlsx")
 
 
+def _map_ownership_type(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    raw_lower = raw.lower()
+    if "amazon-leased" in raw_lower or "amazon_rental" in raw_lower:
+        return "Prime"
+    if "subcontracted" in raw_lower or "rental" in raw_lower:
+        return "Rental"
+    return None
+
+
 def _safe_str(val) -> str | None:
     """Extract a clean string from a pandas cell, return None if empty/nan."""
     if pd.isna(val):
@@ -48,6 +59,7 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
     if is_vehicles_data:
         plate_col = col_map["licenseplatenumber"]
         status_col = col_map.get("operationalstatus")
+        ownership_col = col_map.get("ownershiptype")
         desc_parts = []
         for key in ("make", "model"):
             if key in col_map:
@@ -71,6 +83,8 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
         if is_vehicles_data:
             code = _safe_str(row.get(plate_col))
             op_status = _safe_str(row.get(status_col)) if status_col else None
+            ownership_raw = _safe_str(row.get(ownership_col)) if ownership_col else None
+            ownership = _map_ownership_type(ownership_raw)
             # Build description from make + model
             parts = [_safe_str(row.get(c)) for c in desc_parts]
             description = " ".join(p for p in parts if p) or None
@@ -78,6 +92,7 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
             code = _safe_str(row.get("code"))
             description = _safe_str(row.get("description"))
             op_status = _safe_str(row.get("operational_status"))
+            ownership = _map_ownership_type(_safe_str(row.get("ownership_type")))
 
         if not code:
             errors.append(f"Row {row_num}: empty {'licensePlateNumber' if is_vehicles_data else 'code'}")
@@ -94,6 +109,9 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
             if op_status is not None and existing.operational_status != op_status:
                 existing.operational_status = op_status
                 changed = True
+            if ownership is not None and existing.ownership_type != ownership:
+                existing.ownership_type = ownership
+                changed = True
             if not existing.active:
                 existing.active = True
                 changed = True
@@ -102,7 +120,7 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
             skipped += 1
             continue
 
-        van = Van(code=code, description=description, operational_status=op_status)
+        van = Van(code=code, description=description, operational_status=op_status, ownership_type=ownership)
         db.add(van)
         imported += 1
 

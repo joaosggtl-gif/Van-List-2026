@@ -56,6 +56,7 @@ class Van(Base):
     code = Column(String(50), unique=True, nullable=False, index=True)  # licensePlateNumber
     description = Column(String(200), nullable=True)
     operational_status = Column(String(30), nullable=True)  # OPERATIONAL, GROUNDED
+    ownership_type = Column(String(20), nullable=True)  # Prime or Rental
     active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

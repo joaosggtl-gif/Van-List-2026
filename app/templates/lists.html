@@ -23,6 +23,7 @@
                         <tr>
                             {% if is_admin %}<th style="width:30px;"><input type="checkbox" id="select-all-vans" onchange="toggleAllVanCheckboxes(this)"></th>{% endif %}
                             <th>Plate</th>
+                            <th>Type</th>
                             <th>Description</th>
                             <th>Op. Status</th>
                             <th>Status</th>
@@ -34,6 +35,15 @@
                         <tr class="{% if not v.active %}table-secondary{% endif %}">
                             {% if is_admin %}<td><input type="checkbox" class="van-checkbox" value="{{ v.id }}" onchange="updateDeactivateVansBtn()"></td>{% endif %}
                             <td><strong>{{ v.code }}</strong></td>
+                            <td>
+                                {% if v.ownership_type == 'Prime' %}
+                                    <span class="badge bg-primary">Prime</span>
+                                {% elif v.ownership_type == 'Rental' %}
+                                    <span class="badge bg-warning text-dark">Rental</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td>{{ v.description or '-' }}</td>
                             <td>
                                 {% if can_edit %}
@@ -80,7 +90,7 @@
                         </tr>
                         {% endfor %}
                         {% if not vans %}
-                        <tr><td colspan="{% if is_admin %}6{% else %}4{% endif %}" class="text-center text-muted py-3">No vans. Upload a list first.</td></tr>
+                        <tr><td colspan="{% if is_admin %}7{% else %}5{% endif %}" class="text-center text-muted py-3">No vans. Upload a list first.</td></tr>
                         {% endif %}
                     </tbody>
                 </table>

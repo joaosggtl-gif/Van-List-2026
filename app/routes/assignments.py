@@ -348,7 +348,7 @@ def available_vans_for_date(
     )
     if q:
         query = query.filter(Van.code.ilike(f"%{q}%"))
-    return [{"id": v.id, "code": v.code, "description": v.description, "operational_status": v.operational_status} for v in query.order_by(Van.code).limit(20).all()]
+    return [{"id": v.id, "code": v.code, "description": v.description, "operational_status": v.operational_status, "ownership_type": v.ownership_type} for v in query.order_by(Van.code).limit(20).all()]
 
 
 @router.get("/available-drivers")

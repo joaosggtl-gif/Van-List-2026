@@ -172,7 +172,12 @@
                     <td>{{ loop.index }}</td>
                     <td>{{ a.driver.employee_id }}</td>
                     <td>{{ a.driver.name | short_name }}</td>
-                    <td><strong>{{ a.van.code }}</strong></td>
+                    <td>
+                        <strong>{{ a.van.code }}</strong>
+                        {% if a.van.ownership_type %}
+                        <span class="badge {% if a.van.ownership_type == 'Prime' %}bg-primary{% else %}bg-warning text-dark{% endif %}" style="font-size:0.6rem;">{{ a.van.ownership_type }}</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if a.van.operational_status == 'OPERATIONAL' %}
                             <span class="badge bg-success">OPERATIONAL</span>

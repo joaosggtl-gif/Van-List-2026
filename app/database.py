@@ -5,17 +5,21 @@ from app.config import DATABASE_URL
 
 
 connect_args = {}
-if DATABASE_URL.startswith("sqlite"):
+is_sqlite = DATABASE_URL.startswith("sqlite")
+if is_sqlite:
     connect_args["check_same_thread"] = False
 
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
     echo=False,
+    # For PostgreSQL on Render: reconnect automatically when idle connections drop
+    pool_pre_ping=not is_sqlite,
+    pool_recycle=300 if not is_sqlite else -1,
 )
 
 # Enable WAL mode and foreign keys for SQLite
-if DATABASE_URL.startswith("sqlite"):
+if is_sqlite:
     @event.listens_for(engine, "connect")
     def _set_sqlite_pragma(dbapi_conn, _connection_record):
         cursor = dbapi_conn.cursor()

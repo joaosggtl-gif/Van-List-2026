@@ -54,6 +54,7 @@ def _assignment_row(a: DailyAssignment) -> list:
         a.driver.employee_id if a.driver else "",
         short_name(a.driver.name) if a.driver else "",
         a.van.code if a.van else "",
+        (a.van.ownership_type or "") if a.van else "",
         (a.van.description or "") if a.van else "",
         (a.van.operational_status or "") if a.van else "",
         status,
@@ -65,7 +66,7 @@ def _assignment_row(a: DailyAssignment) -> list:
 
 HEADERS = [
     "Date", "Week #", "Driver ID", "Driver Name",
-    "Van (Plate)", "Van Description", "Operational Status", "Status",
+    "Van (Plate)", "Type", "Van Description", "Operational Status", "Status",
     "Created At", "Updated At", "Notes",
 ]
 
@@ -133,24 +134,25 @@ def export_daily_simple_xlsx(db: Session, target_date: date) -> bytes:
 
     for van in all_vans:
         a = assign_by_van.get(van.id)
+        otype = van.ownership_type or ""
         if a and a.driver_id and a.driver:
-            assigned_rows.append((van.code, short_name(a.driver.name), "assigned"))
+            assigned_rows.append((van.code, otype, short_name(a.driver.name), "assigned"))
         elif a and not a.driver_id:
-            vor_rows.append((van.code, "VOR", "vor"))
+            vor_rows.append((van.code, otype, "VOR", "vor"))
         elif van.operational_status == "GROUNDED":
-            vor_rows.append((van.code, "VOR", "vor"))
+            vor_rows.append((van.code, otype, "VOR", "vor"))
         else:
-            free_rows.append((van.code, "Free", "free"))
+            free_rows.append((van.code, otype, "Free", "free"))
 
     wb = Workbook()
     ws = wb.active
     ws.title = target_date.strftime("%A %d-%m")
 
-    ws.append(["Van Reg", "Driver Name"])
+    ws.append(["Van Reg", "Type", "Driver Name"])
     _style_header(ws)
 
-    for code, driver, status in assigned_rows + free_rows + vor_rows:
-        ws.append([code, driver])
+    for code, otype, driver, status in assigned_rows + free_rows + vor_rows:
+        ws.append([code, otype, driver])
         row_num = ws.max_row
         if status == "free":
             for col in (1, 2):
@@ -274,7 +276,10 @@ def export_period_xlsx(db: Session, start_date: date, end_date: date) -> bytes:
 
         # One row per van
         for van in all_vans:
-            row_data = [van.code]
+            van_label = van.code
+            if van.ownership_type:
+                van_label += f" ({van.ownership_type})"
+            row_data = [van_label]
             row_cells_vor = []  # track which columns need VOR styling
             for i, day in enumerate(days):
                 day_iso = day.isoformat()
