@@ -5,10 +5,14 @@ from sqlalchemy import engine_from_config, pool
 
 from app.database import Base
 from app.models import Van, Driver, DailyAssignment, ImportLog  # noqa: F401
+from app.config import DATABASE_URL
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Use the app's DATABASE_URL (reads from env var in production)
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 target_metadata = Base.metadata
 
