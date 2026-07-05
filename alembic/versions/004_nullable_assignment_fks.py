@@ -14,12 +14,10 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table("daily_assignments") as batch_op:
-        batch_op.alter_column("van_id", existing_type=sa.Integer(), nullable=True)
-        batch_op.alter_column("driver_id", existing_type=sa.Integer(), nullable=True)
+    op.alter_column("daily_assignments", "van_id", existing_type=sa.Integer(), nullable=True)
+    op.alter_column("daily_assignments", "driver_id", existing_type=sa.Integer(), nullable=True)
 
 
 def downgrade():
-    with op.batch_alter_table("daily_assignments") as batch_op:
-        batch_op.alter_column("van_id", existing_type=sa.Integer(), nullable=False)
-        batch_op.alter_column("driver_id", existing_type=sa.Integer(), nullable=False)
+    op.alter_column("daily_assignments", "van_id", existing_type=sa.Integer(), nullable=False)
+    op.alter_column("daily_assignments", "driver_id", existing_type=sa.Integer(), nullable=False)
