@@ -23,11 +23,22 @@ def _read_file(content: bytes, filename: str) -> pd.DataFrame:
 def _map_ownership_type(raw: str | None) -> str | None:
     if not raw:
         return None
-    raw_lower = raw.lower()
-    if "amazon-leased" in raw_lower or "amazon_rental" in raw_lower:
+    # Normalise separators so "amazon-leased", "AMAZON_RENTAL", "Amazon Leased" all match
+    raw_norm = raw.lower().replace("_", " ").replace("-", " ")
+    if "amazon" in raw_norm:
         return "Prime"
-    if "subcontracted" in raw_lower or "rental" in raw_lower:
+    if "subcontracted" in raw_norm or "rental" in raw_norm:
         return "Rental"
+    return None
+
+
+def _find_col(col_map: dict, *names: str):
+    """Look up a column by trying several name variants (normalised: lowercase, no spaces/underscores)."""
+    normalised = {k.replace(" ", "").replace("_", ""): v for k, v in col_map.items()}
+    for name in names:
+        key = name.lower().replace(" ", "").replace("_", "")
+        if key in normalised:
+            return normalised[key]
     return None
 
 
@@ -58,8 +69,8 @@ def import_vans(db: Session, content: bytes, filename: str, uploaded_by: str = N
 
     if is_vehicles_data:
         plate_col = col_map["licenseplatenumber"]
-        status_col = col_map.get("operationalstatus")
-        ownership_col = col_map.get("ownershiptype")
+        status_col = _find_col(col_map, "operationalStatus", "operationalstatus", "operational_status")
+        ownership_col = _find_col(col_map, "ownershipType", "ownershiptype", "ownership_type", "ownership type")
         desc_parts = []
         for key in ("make", "model"):
             if key in col_map:
