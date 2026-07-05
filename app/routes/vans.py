@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import text, inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
-from app.database import get_db, engine
+from app.database import get_db
 from app.models import Van, User
 from app.schemas import VanOut
 from app.services.audit_service import log_action
@@ -69,23 +68,6 @@ def delete_van(
     db.commit()
     return {"id": van.id, "active": van.active}
 
-
-@router.get("/debug/ownership")
-def debug_ownership(
-    db: Session = Depends(get_db),
-    _user: User = Depends(require_role("admin")),
-):
-    """Temporary diagnostic: shows ownership_type column state in DB."""
-    inspector = sa_inspect(engine)
-    col_names = [c["name"] for c in inspector.get_columns("vans")]
-    has_col = "ownership_type" in col_names
-    sample = db.query(Van).order_by(Van.id).limit(10).all()
-    return {
-        "column_exists": has_col,
-        "vans_with_ownership": db.query(Van).filter(Van.ownership_type.isnot(None)).count(),
-        "total_active_vans": db.query(Van).filter(Van.active == True).count(),
-        "sample": [{"code": v.code, "ownership_type": v.ownership_type} for v in sample],
-    }
 
 
 @router.post("/{van_id}/operational-status")
