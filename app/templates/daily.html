@@ -547,7 +547,27 @@ async function assignVanToDriver(driverAssignmentId, driverId, vanId) {
 
 if (CAN_EDIT) {
     // --- Autocomplete logic ---
-    function setupAutocomplete(inputId, hiddenId, dropdownId, apiUrl) {
+    async function quickAddDriver(name, hidden, input, dropdown) {
+        try {
+            const res = await fetch('/api/drivers/quick-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+                const driver = await res.json();
+                hidden.value = driver.id;
+                input.value = `${driver.employee_id} - ${driver.short_name}`;
+                input.classList.add('is-valid');
+                dropdown.style.display = 'none';
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error adding driver');
+            }
+        } catch (e) { alert('Network error'); }
+    }
+
+    function setupAutocomplete(inputId, hiddenId, dropdownId, apiUrl, allowManual = false) {
         const input = document.getElementById(inputId);
         const hidden = document.getElementById(hiddenId);
         const dropdown = document.getElementById(dropdownId);
@@ -632,8 +652,6 @@ if (CAN_EDIT) {
                     dropdown.innerHTML = '';
                     if (items.length === 0) {
                         dropdown.innerHTML = '<div class="autocomplete-item text-muted">No results</div>';
-                        dropdown.style.display = 'block';
-                        return;
                     }
                     items.forEach((item, idx) => {
                         const div = document.createElement('div');
@@ -657,19 +675,27 @@ if (CAN_EDIT) {
                         });
                         dropdown.appendChild(div);
                     });
+                    if (allowManual && query) {
+                        const manualDiv = document.createElement('div');
+                        manualDiv.className = 'autocomplete-item';
+                        manualDiv.style.cssText = 'color:#6610f2; border-top:1px solid #dee2e6; font-style:italic;';
+                        manualDiv.innerHTML = `<i class="bi bi-person-plus"></i> Use "<strong>${query}</strong>" manually`;
+                        manualDiv.addEventListener('click', () => quickAddDriver(query, hidden, input, dropdown));
+                        dropdown.appendChild(manualDiv);
+                    }
                     dropdown.style.display = 'block';
                 });
         }
     }
 
     // Driver-only form autocomplete
-    setupAutocomplete('do-driver-search', 'do-driver-id', 'do-driver-dropdown', '/api/assignments/available-drivers');
+    setupAutocomplete('do-driver-search', 'do-driver-id', 'do-driver-dropdown', '/api/assignments/available-drivers', true);
 
     // Van-only form autocomplete
     setupAutocomplete('vo-van-search', 'vo-van-id', 'vo-van-dropdown', '/api/assignments/available-vans');
 
     // Full assignment form autocomplete
-    setupAutocomplete('full-driver-search', 'full-driver-id', 'full-driver-dropdown', '/api/assignments/available-drivers');
+    setupAutocomplete('full-driver-search', 'full-driver-id', 'full-driver-dropdown', '/api/assignments/available-drivers', true);
     setupAutocomplete('full-van-search', 'full-van-id', 'full-van-dropdown', '/api/assignments/available-vans');
 
     // --- Pair van autocomplete (Drivers Awaiting Van section) ---

@@ -722,7 +722,6 @@
 
             if (drivers.length === 0 && query) {
                 list.innerHTML += '<div class="p-2 text-muted" style="font-size:0.78rem">No drivers found</div>';
-                return;
             }
             drivers.forEach(d => {
                 const item = document.createElement('div');
@@ -735,6 +734,14 @@
                 item.addEventListener('click', () => selectDriver(d));
                 list.appendChild(item);
             });
+            if (query) {
+                const manualItem = document.createElement('div');
+                manualItem.className = 'cell-inline-item';
+                manualItem.style.cssText = 'color:#6610f2; border-top:1px solid #dee2e6; font-style:italic;';
+                manualItem.innerHTML = `<i class="bi bi-person-plus"></i> Use "<strong>${query}</strong>" manually`;
+                manualItem.addEventListener('click', () => quickAddAndSelect(query));
+                list.appendChild(manualItem);
+            }
         } catch (e) {
             list.innerHTML = '<div class="p-2 text-danger" style="font-size:0.78rem">Error loading</div>';
         }
@@ -787,6 +794,23 @@
             } else {
                 const err = await res.json();
                 alert(err.detail || 'Error assigning driver');
+            }
+        } catch (e) { alert('Network error'); }
+    }
+
+    async function quickAddAndSelect(name) {
+        try {
+            const res = await fetch('/api/drivers/quick-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+                const driver = await res.json();
+                selectDriver(driver);
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Error adding driver');
             }
         } catch (e) { alert('Network error'); }
     }

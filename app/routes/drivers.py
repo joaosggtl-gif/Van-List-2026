@@ -1,4 +1,7 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
@@ -9,6 +12,37 @@ from app.schemas import DriverOut
 from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/api/drivers", tags=["drivers"])
+
+
+class QuickAddRequest(BaseModel):
+    name: str
+
+
+@router.post("/quick-add")
+def quick_add_driver(
+    data: QuickAddRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("operator")),
+):
+    """Create a driver from a manually typed name, or return existing active driver with that name."""
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    existing = db.query(Driver).filter(Driver.name.ilike(name), Driver.active == True).first()
+    if existing:
+        return {"id": existing.id, "name": existing.name, "employee_id": existing.employee_id,
+                "short_name": short_name(existing.name), "existing_assignment_id": None}
+
+    employee_id = f"MANUAL_{uuid.uuid4().hex[:8].upper()}"
+    driver = Driver(name=name, employee_id=employee_id)
+    db.add(driver)
+    db.flush()
+    log_action(db, user, "create", "driver", driver.id, f"Manually added driver '{name}'")
+    db.commit()
+    db.refresh(driver)
+    return {"id": driver.id, "name": driver.name, "employee_id": driver.employee_id,
+            "short_name": short_name(driver.name), "existing_assignment_id": None}
 
 
 @router.get("", response_model=list[DriverOut])
